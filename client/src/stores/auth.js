@@ -23,22 +23,22 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function login(loginData) {
     const res = await loginApi(loginData.username, loginData.password)
-    if (res.token) {
-      setToken(res.token)
+    if (res.data && res.data.token) {
+      setToken(res.data.token)
     }
-    if (res.user) {
-      setUser(res.user)
+    if (res.data && res.data.user) {
+      setUser(res.data.user)
     }
     return res
   }
 
   async function register(registerData) {
     const res = await registerApi(registerData.username, registerData.email, registerData.password)
-    if (res.token) {
-      setToken(res.token)
+    if (res.data && res.data.token) {
+      setToken(res.data.token)
     }
-    if (res.user) {
-      setUser(res.user)
+    if (res.data && res.data.user) {
+      setUser(res.data.user)
     }
     return res
   }

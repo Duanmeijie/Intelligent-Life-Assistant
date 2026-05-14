@@ -1,741 +1,390 @@
 <template>
-  <div class="analytics-container">
+  <div class="page-container">
     <div class="page-header">
-      <h1 class="page-title">数据分析</h1>
-      <p class="page-desc">全面了解您的习惯、打卡和日程数据</p>
+      <h1><span class="gradient-text">数据分析</span></h1>
+      <p>全面了解您的习惯、打卡和日程数据</p>
     </div>
 
-    <div class="toolbar">
+    <div class="glass-card date-filter">
+      <span class="filter-label">时间范围：</span>
       <el-date-picker
         v-model="dateRange"
         type="daterange"
         range-separator="至"
         start-placeholder="开始日期"
         end-placeholder="结束日期"
-        value-format="YYYY-MM-DD"
-        @change="handleDateRangeChange"
+        size="default"
+        @change="handleDateChange"
       />
     </div>
 
-    <el-tabs v-model="activeTab" type="border-card" class="analytics-tabs">
-      <el-tab-pane label="习惯统计" name="habits">
-        <div v-loading="habitsLoading" class="tab-content">
-          <el-row :gutter="24">
-            <el-col :xs="24" :lg="14">
-              <h3 class="chart-title">习惯完成率（近30天）</h3>
-              <div ref="barChartRef" class="chart-container" />
-            </el-col>
-            <el-col :xs="24" :lg="10">
-              <h3 class="chart-title">分类分布</h3>
-              <div ref="pieChartRef" class="chart-container" />
-            </el-col>
-          </el-row>
-          <div v-if="!habitsLoading && habitBarData.length === 0" class="empty-state">
-            <p>暂无习惯数据</p>
-          </div>
-        </div>
-      </el-tab-pane>
-
-      <el-tab-pane label="打卡热力图" name="heatmap">
-        <div v-loading="heatmapLoading" class="tab-content">
-          <div class="heatmap-header">
-            <h3 class="chart-title">{{ heatmapYear }} 年打卡记录</h3>
-          </div>
-          <CalendarHeatmap :data="heatmapData" :year="heatmapYear" />
-        </div>
-      </el-tab-pane>
-
-      <el-tab-pane label="日程统计" name="schedules">
-        <div v-loading="scheduleLoading" class="tab-content">
-          <el-row :gutter="24">
-            <el-col :xs="24" :lg="10">
-              <h3 class="chart-title">日程分类分布</h3>
-              <div ref="schedulePieRef" class="chart-container" />
-            </el-col>
-            <el-col :xs="24" :lg="14">
-              <h3 class="chart-title">每周日程数量</h3>
-              <div ref="scheduleBarRef" class="chart-container" />
-            </el-col>
-          </el-row>
-          <div v-if="!scheduleLoading && schedulePieData.length === 0" class="empty-state">
-            <p>暂无日程数据</p>
-          </div>
-        </div>
-      </el-tab-pane>
-
-      <el-tab-pane label="效率分析" name="analysis">
-        <div v-loading="analysisLoading" class="tab-content">
-          <div v-if="analysisReport" class="analysis-card">
-            <div class="analysis-header">
-              <el-icon :size="28" color="#409eff"><DataAnalysis /></el-icon>
-              <h3>AI 效率分析报告</h3>
+    <div class="glass-card">
+      <el-tabs v-model="activeTab" type="card" class="analytics-tabs">
+        <el-tab-pane label="📊 习惯统计" name="habits">
+          <div class="charts-grid">
+            <div class="chart-card">
+              <h4>习惯完成率（近30天）</h4>
+              <div ref="habitBarChart" class="chart-box"></div>
             </div>
-            <el-divider />
-            <div class="analysis-body">
-              <div v-for="(section, index) in parsedSections" :key="index" class="analysis-section">
-                <h4 v-if="section.title" class="section-title">{{ section.title }}</h4>
-                <p class="section-content">{{ section.content }}</p>
-              </div>
-              <p v-if="!parsedSections.length" class="analysis-raw">{{ analysisReport }}</p>
-            </div>
-            <div class="analysis-footer">
-              <span class="analysis-date">报告生成时间：{{ analysisGeneratedAt }}</span>
+            <div class="chart-card">
+              <h4>习惯分类分布</h4>
+              <div ref="habitPieChart" class="chart-box"></div>
             </div>
           </div>
-          <div v-else-if="!analysisLoading" class="empty-state">
-            <el-icon :size="48" color="#c0c4cc"><DataAnalysis /></el-icon>
-            <p>暂无分析报告，请积累更多数据后再来查看</p>
+        </el-tab-pane>
+
+        <el-tab-pane label="📅 打卡热力图" name="checkin">
+          <div class="chart-card">
+            <h4>年度打卡热力图</h4>
+            <CalendarHeatmap :checkins="checkinData" />
           </div>
-        </div>
-      </el-tab-pane>
-    </el-tabs>
+        </el-tab-pane>
+
+        <el-tab-pane label="📋 日程分析" name="schedule">
+          <div class="charts-grid">
+            <div class="chart-card">
+              <h4>日程分类分布</h4>
+              <div ref="schedulePieChart" class="chart-box"></div>
+            </div>
+            <div class="chart-card">
+              <h4>每周日程数量</h4>
+              <div ref="scheduleBarChart" class="chart-box"></div>
+            </div>
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane label="🤖 AI 效率分析" name="ai">
+          <div v-if="aiLoading" class="empty-state">
+            <el-icon class="is-loading" :size="32"><Loading /></el-icon>
+            <p>AI 正在分析您的数据...</p>
+          </div>
+          <div v-else-if="aiReport" class="ai-report">
+            <h4>📋 AI 效率分析报告</h4>
+            <div class="report-content" v-html="parsedReport"></div>
+          </div>
+          <div v-else class="empty-state">
+            <span style="font-size:48px">🤖</span>
+            <p>选择时间范围后点击查询获取 AI 分析报告</p>
+            <el-button type="primary" @click="fetchAiAnalysis" style="margin-top:12px">
+              开始分析
+            </el-button>
+          </div>
+        </el-tab-pane>
+      </el-tabs>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { Loading } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
-import dayjs from 'dayjs'
-import { ElMessage } from 'element-plus'
-import { DataAnalysis } from '@element-plus/icons-vue'
-import { getCheckinStats, getCheckins } from '@/api/checkin'
 import { getHabits } from '@/api/habit'
+import { getCheckins } from '@/api/checkin'
 import { getSchedules } from '@/api/schedule'
 import { getAnalysis } from '@/api/ai'
-import CalendarHeatmap from '@/components/CalendarHeatmap.vue'
+import dayjs from 'dayjs'
 
 const activeTab = ref('habits')
-const dateRange = ref([
-  dayjs().subtract(30, 'day').format('YYYY-MM-DD'),
-  dayjs().format('YYYY-MM-DD')
-])
+const dateRange = ref([dayjs().subtract(30, 'day').toDate(), new Date()])
 
-const habitsLoading = ref(false)
-const heatmapLoading = ref(false)
-const scheduleLoading = ref(false)
-const analysisLoading = ref(false)
+const habitBarChart = ref(null)
+const habitPieChart = ref(null)
+const schedulePieChart = ref(null)
+const scheduleBarChart = ref(null)
 
-const habitBarData = ref([])
-const habitPieData = ref([])
-const heatmapData = ref([])
-const heatmapYear = ref(dayjs().year())
-const schedulePieData = ref([])
-const scheduleBarData = ref([])
-const analysisReport = ref('')
-const analysisGeneratedAt = ref('')
-
-const barChartRef = ref(null)
-const pieChartRef = ref(null)
-const schedulePieRef = ref(null)
-const scheduleBarRef = ref(null)
+const checkinData = ref([])
+const aiLoading = ref(false)
+const aiReport = ref('')
 
 let barChartInstance = null
 let pieChartInstance = null
-let schedulePieInstance = null
-let scheduleBarInstance = null
+let schedPieInstance = null
+let schedBarInstance = null
 
-const categoryColorMap = {
-  '健康': '#67c23a',
-  '学习': '#409eff',
-  '工作': '#e6a23c',
-  '生活': '#909399',
-  '运动': '#f56c6c',
-  '阅读': '#9b59b6',
-  '冥想': '#1abc9c',
-  '社交': '#3498db',
-  '娱乐': '#f39c12',
-  '其他': '#b0b0b0'
+const parsedReport = ref('')
+
+const categoryLabels = {
+  health: '健康', study: '学习', work: '工作', life: '生活',
+  sports: '运动', reading: '阅读', meditation: '冥想', social: '社交', other: '其他'
 }
 
-const parsedSections = computed(() => {
-  if (!analysisReport.value) return []
-  const lines = analysisReport.value.split('\n').filter(l => l.trim())
-  const sections = []
-  let currentTitle = ''
-  let currentContent = []
-
-  for (const line of lines) {
-    const trimmed = line.trim()
-    if (/^[#*]{1,3}\s/.test(trimmed) || /^[一二三四五六七八九十、]+/.test(trimmed)) {
-      if (currentTitle || currentContent.length) {
-        sections.push({
-          title: currentTitle,
-          content: currentContent.join('\n')
-        })
-      }
-      currentTitle = trimmed.replace(/^[#*]{1,3}\s*/, '').replace(/^[一二三四五六七八九十、]+/, '')
-      currentContent = []
-    } else {
-      currentContent.push(trimmed)
-    }
-  }
-  if (currentTitle || currentContent.length) {
-    sections.push({
-      title: currentTitle,
-      content: currentContent.join('\n')
-    })
-  }
-  return sections
-})
-
-function getCategoryColor(category) {
-  return categoryColorMap[category] || '#409eff'
-}
-
-function initBarChart() {
-  if (!barChartRef.value) return
-  if (barChartInstance) barChartInstance.dispose()
-  barChartInstance = echarts.init(barChartRef.value)
-
-  const names = habitBarData.value.map(d => d.name)
-  const values = habitBarData.value.map(d => d.completionRate)
-
-  barChartInstance.setOption({
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: { type: 'shadow' },
-      formatter: (params) => {
-        const p = params[0]
-        return `${p.name}<br/>完成率：${p.value}%`
-      }
-    },
-    grid: {
-      left: '3%',
-      right: '8%',
-      bottom: '3%',
-      containLabel: true
-    },
-    xAxis: {
-      type: 'value',
-      max: 100,
-      axisLabel: {
-        formatter: '{value}%'
-      },
-      splitLine: {
-        lineStyle: { type: 'dashed', color: '#eee' }
-      }
-    },
-    yAxis: {
-      type: 'category',
-      data: names,
-      axisLine: { show: false },
-      axisTick: { show: false },
-      axisLabel: { fontSize: 12 }
-    },
-    series: [
-      {
-        type: 'bar',
-        data: values.map((v, i) => ({
-          value: v,
-          itemStyle: {
-            color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-              { offset: 0, color: '#409eff' },
-              { offset: 1, color: '#79bbff' }
-            ]),
-            borderRadius: [0, 4, 4, 0]
-          }
-        })),
-        barWidth: 20,
-        label: {
-          show: true,
-          position: 'right',
-          formatter: '{c}%',
-          fontSize: 12,
-          fontWeight: 600
-        }
-      }
-    ]
-  })
-}
-
-function initPieChart() {
-  if (!pieChartRef.value) return
-  if (pieChartInstance) pieChartInstance.dispose()
-  pieChartInstance = echarts.init(pieChartRef.value)
-
-  pieChartInstance.setOption({
-    tooltip: {
-      trigger: 'item',
-      formatter: '{b}：{c} 个 ({d}%)'
-    },
-    legend: {
-      orient: 'vertical',
-      right: '5%',
-      top: 'center',
-      textStyle: { fontSize: 12 }
-    },
-    series: [
-      {
-        type: 'pie',
-        radius: ['40%', '70%'],
-        center: ['40%', '50%'],
-        avoidLabelOverlap: true,
-        itemStyle: {
-          borderRadius: 6,
-          borderColor: '#fff',
-          borderWidth: 2
-        },
-        label: {
-          show: false
-        },
-        emphasis: {
-          label: {
-            show: true,
-            fontSize: 14,
-            fontWeight: 'bold'
-          },
-          itemStyle: {
-            shadowBlur: 10,
-            shadowOffsetX: 0,
-            shadowColor: 'rgba(0, 0, 0, 0.2)'
-          }
-        },
-        data: habitPieData.value.map(d => ({
-          name: d.name,
-          value: d.count,
-          itemStyle: { color: getCategoryColor(d.name) }
-        }))
-      }
-    ]
-  })
-}
-
-function initSchedulePie() {
-  if (!schedulePieRef.value) return
-  if (schedulePieInstance) schedulePieInstance.dispose()
-  schedulePieInstance = echarts.init(schedulePieRef.value)
-
-  schedulePieInstance.setOption({
-    tooltip: {
-      trigger: 'item',
-      formatter: '{b}：{c} 项 ({d}%)'
-    },
-    legend: {
-      orient: 'vertical',
-      right: '5%',
-      top: 'center',
-      textStyle: { fontSize: 12 }
-    },
-    series: [
-      {
-        type: 'pie',
-        radius: ['40%', '70%'],
-        center: ['40%', '50%'],
-        avoidLabelOverlap: true,
-        itemStyle: {
-          borderRadius: 6,
-          borderColor: '#fff',
-          borderWidth: 2
-        },
-        label: {
-          show: false
-        },
-        emphasis: {
-          label: {
-            show: true,
-            fontSize: 14,
-            fontWeight: 'bold'
-          },
-          itemStyle: {
-            shadowBlur: 10,
-            shadowOffsetX: 0,
-            shadowColor: 'rgba(0, 0, 0, 0.2)'
-          }
-        },
-        data: schedulePieData.value.map(d => ({
-          name: d.name,
-          value: d.count,
-          itemStyle: { color: getCategoryColor(d.name) }
-        }))
-      }
-    ]
-  })
-}
-
-function initScheduleBar() {
-  if (!scheduleBarRef.value) return
-  if (scheduleBarInstance) scheduleBarInstance.dispose()
-  scheduleBarInstance = echarts.init(scheduleBarRef.value)
-
-  const weeks = scheduleBarData.value.map(d => d.week)
-  const counts = scheduleBarData.value.map(d => d.count)
-
-  scheduleBarInstance.setOption({
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: { type: 'shadow' }
-    },
-    grid: {
-      left: '3%',
-      right: '4%',
-      bottom: '3%',
-      containLabel: true
-    },
-    xAxis: {
-      type: 'category',
-      data: weeks,
-      axisLabel: { fontSize: 11 },
-      axisLine: { show: false },
-      axisTick: { show: false }
-    },
-    yAxis: {
-      type: 'value',
-      minInterval: 1,
-      splitLine: {
-        lineStyle: { type: 'dashed', color: '#eee' }
-      }
-    },
-    series: [
-      {
-        type: 'bar',
-        data: counts.map(v => ({
-          value: v,
-          itemStyle: {
-            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0, color: '#67c23a' },
-              { offset: 1, color: '#95d475' }
-            ]),
-            borderRadius: [4, 4, 0, 0]
-          }
-        })),
-        barWidth: 24,
-        label: {
-          show: true,
-          position: 'top',
-          fontSize: 12,
-          fontWeight: 600
-        }
-      }
-    ]
-  })
-}
-
-function handleResize() {
-  barChartInstance?.resize()
-  pieChartInstance?.resize()
-  schedulePieInstance?.resize()
-  scheduleBarInstance?.resize()
-}
-
-function getDefaultDateRange() {
-  return [
-    dayjs().subtract(30, 'day').format('YYYY-MM-DD'),
-    dayjs().format('YYYY-MM-DD')
-  ]
+function formatDate(d) {
+  if (!d) return ''
+  return dayjs(d).format('YYYY-MM-DD')
 }
 
 async function fetchHabitStats() {
-  habitsLoading.value = true
   try {
-    const [days, end] = dateRange.value || getDefaultDateRange()
-    const startDate = days
-    const endDate = end
-
-    const statsRes = await getCheckinStats({ startDate, endDate })
-    const stats = statsRes?.data || statsRes || {}
-
-    const habitsRes = await getHabits()
-    const habitsList = habitsRes?.data || (Array.isArray(habitsRes) ? habitsRes : [])
-
-    if (Array.isArray(habitsList)) {
-      const categoryMap = {}
-      habitsList.forEach(h => {
-        const cat = h.category || '其他'
-        if (!categoryMap[cat]) categoryMap[cat] = 0
-        categoryMap[cat]++
+    const res = await getHabits()
+    const habits = res.data || res || []
+    const names = habits.map(h => h.name)
+    const rates = habits.map(h => h.completion_rate || 0)
+    if (barChartInstance) {
+      barChartInstance.setOption({
+        tooltip: { trigger: 'axis' },
+        grid: { left: '3%', right: '10%', bottom: '3%', containLabel: true },
+        xAxis: { type: 'value', max: 100, axisLabel: { formatter: '{value}%' } },
+        yAxis: { type: 'category', data: names.reverse(), axisLabel: { fontSize: 12 } },
+        series: [{
+          type: 'bar', data: rates.reverse(), itemStyle: {
+            color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+              { offset: 0, color: '#6366f1' }, { offset: 1, color: '#8b5cf6' }
+            ]),
+            borderRadius: [0, 6, 6, 0]
+          },
+          label: { show: true, position: 'right', formatter: '{c}%' }
+        }]
       })
-
-      habitPieData.value = Object.entries(categoryMap).map(([name, count]) => ({
-        name,
-        count
-      }))
-
-      const completionMap = stats?.completionRates || stats?.habitStats || {}
-      habitBarData.value = habitsList.map(h => ({
-        name: h.name,
-        completionRate: Math.round(completionMap[h.id] || completionMap[h.name] || 0)
-      }))
     }
-
-    await nextTick()
-    initBarChart()
-    initPieChart()
-  } catch (error) {
-    const msg = error?.response?.data?.message || error.message || '获取习惯统计失败'
-    ElMessage.error(msg)
-    habitBarData.value = []
-    habitPieData.value = []
-  } finally {
-    habitsLoading.value = false
+    const catCount = {}
+    habits.forEach(h => {
+      const cat = h.category || 'other'
+      catCount[cat] = (catCount[cat] || 0) + 1
+    })
+    const catData = Object.entries(catCount).map(([k, v]) => ({
+      name: categoryLabels[k] || k, value: v
+    }))
+    if (pieChartInstance) {
+      pieChartInstance.setOption({
+        tooltip: { trigger: 'item' },
+        series: [{
+          type: 'pie', radius: ['45%', '75%'], center: ['50%', '50%'],
+          data: catData,
+          emphasis: { itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0,0,0,0.2)' } },
+          itemStyle: { borderRadius: 6, borderColor: 'transparent', borderWidth: 3 }
+        }]
+      })
+    }
+  } catch (err) {
+    console.error('获取习惯统计失败:', err)
   }
 }
 
-async function fetchHeatmapData() {
-  heatmapLoading.value = true
+async function fetchCheckinData() {
   try {
-    const year = heatmapYear.value
-    const startDate = `${year}-01-01`
-    const endDate = `${year}-12-31`
-    const res = await getCheckins({ startDate, endDate, pageSize: 1000 })
-    const list = res?.data?.rows || res?.rows || res?.data || (Array.isArray(res) ? res : [])
-
-    const dateCountMap = {}
-    if (Array.isArray(list)) {
-      list.forEach(item => {
-        const date = item.date || dayjs(item.createdAt).format('YYYY-MM-DD')
-        if (date) {
-          dateCountMap[date] = (dateCountMap[date] || 0) + 1
-        }
-      })
-    }
-
-    heatmapData.value = Object.entries(dateCountMap).map(([date, count]) => ({
-      date,
-      count
-    }))
-  } catch (error) {
-    const msg = error?.response?.data?.message || error.message || '获取打卡数据失败'
-    ElMessage.error(msg)
-    heatmapData.value = []
-  } finally {
-    heatmapLoading.value = false
+    const res = await getCheckins({
+      startDate: dayjs().startOf('year').format('YYYY-MM-DD'),
+      endDate: dayjs().format('YYYY-MM-DD')
+    })
+    const data = res.data || res || []
+    checkinData.value = Array.isArray(data) ? data : []
+  } catch (err) {
+    console.error('获取打卡数据失败:', err)
   }
 }
 
 async function fetchScheduleStats() {
-  scheduleLoading.value = true
   try {
-    const [startDate, endDate] = dateRange.value || getDefaultDateRange()
-    const res = await getSchedules({ startDate, endDate, pageSize: 1000 })
-    const list = res?.data?.rows || res?.rows || res?.data || (Array.isArray(res) ? res : [])
-
-    if (Array.isArray(list)) {
-      const categoryMap = {}
-      const weekMap = {}
-
-      list.forEach(item => {
-        const cat = item.category || '其他'
-        categoryMap[cat] = (categoryMap[cat] || 0) + 1
-
-        const date = item.date || dayjs(item.startTime).format('YYYY-MM-DD')
-        if (date) {
-          const weekStr = dayjs(date).format('YYYY年第WW周')
-          weekMap[weekStr] = (weekMap[weekStr] || 0) + 1
+    const res = await getSchedules({
+      startDate: formatDate(dateRange.value[0]),
+      endDate: formatDate(dateRange.value[1])
+    })
+    const schedules = res.rows || res.data?.rows || res.data || res || []
+    if (Array.isArray(schedules)) {
+      const catCount = {}
+      schedules.forEach(s => {
+        const cat = s.category || 'other'
+        catCount[cat] = (catCount[cat] || 0) + 1
+      })
+      const catData = Object.entries(catCount).map(([k, v]) => ({
+        name: categoryLabels[k] || k, value: v
+      }))
+      if (schedPieInstance) {
+        schedPieInstance.setOption({
+          tooltip: { trigger: 'item' },
+          series: [{
+            type: 'pie', radius: ['45%', '75%'], center: ['50%', '50%'],
+            data: catData, itemStyle: { borderRadius: 6, borderColor: 'transparent', borderWidth: 3 }
+          }]
+        })
+      }
+      const weekly = Array(7).fill(0)
+      schedules.forEach(s => {
+        if (s.start_time) {
+          const day = dayjs(s.start_time).day()
+          weekly[day]++
         }
       })
-
-      schedulePieData.value = Object.entries(categoryMap).map(([name, count]) => ({
-        name,
-        count
-      }))
-
-      const sortedWeeks = Object.keys(weekMap).sort()
-      scheduleBarData.value = sortedWeeks.map(week => ({
-        week,
-        count: weekMap[week]
-      }))
+      const weekLabels = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+      if (schedBarInstance) {
+        schedBarInstance.setOption({
+          tooltip: { trigger: 'axis' },
+          grid: { left: '3%', right: '5%', bottom: '3%', containLabel: true },
+          xAxis: { type: 'category', data: weekLabels },
+          yAxis: { type: 'value' },
+          series: [{
+            type: 'bar', data: weekly, itemStyle: {
+              color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: '#f59e0b' }, { offset: 1, color: '#f97316' }
+              ]),
+              borderRadius: [6, 6, 0, 0]
+            }
+          }]
+        })
+      }
     }
-
-    await nextTick()
-    initSchedulePie()
-    initScheduleBar()
-  } catch (error) {
-    const msg = error?.response?.data?.message || error.message || '获取日程统计失败'
-    ElMessage.error(msg)
-    schedulePieData.value = []
-    scheduleBarData.value = []
-  } finally {
-    scheduleLoading.value = false
+  } catch (err) {
+    console.error('获取日程统计失败:', err)
   }
 }
 
-async function fetchAnalysis() {
-  analysisLoading.value = true
+async function fetchAiAnalysis() {
+  aiLoading.value = true
   try {
-    const [startDate, endDate] = dateRange.value || getDefaultDateRange()
-    const res = await getAnalysis({ startDate, endDate })
-    const data = res?.data || res
-    analysisReport.value = data?.report || data?.analysis || data?.text || ''
-    analysisGeneratedAt.value = data?.generatedAt || dayjs().format('YYYY-MM-DD HH:mm')
-  } catch (error) {
-    const msg = error?.response?.data?.message || error.message || '获取分析报告失败'
-    ElMessage.error(msg)
-    analysisReport.value = ''
+    const res = await getAnalysis({
+      startDate: formatDate(dateRange.value[0]),
+      endDate: formatDate(dateRange.value[1])
+    })
+    aiReport.value = res.data?.report || res.report || ''
+    parsedReport.value = aiReport.value.replace(/\n/g, '<br>')
+  } catch (err) {
+    console.error('AI分析失败:', err)
+    aiReport.value = ''
   } finally {
-    analysisLoading.value = false
+    aiLoading.value = false
   }
 }
 
-function handleDateRangeChange() {
-  switch (activeTab.value) {
-    case 'habits':
-      fetchHabitStats()
-      break
-    case 'schedules':
-      fetchScheduleStats()
-      break
-    case 'analysis':
-      fetchAnalysis()
-      break
+function handleDateChange() {
+  if (activeTab.value === 'schedule') fetchScheduleStats()
+  if (activeTab.value === 'ai') fetchAiAnalysis()
+}
+
+function initCharts() {
+  if (habitBarChart.value && !barChartInstance) {
+    barChartInstance = echarts.init(habitBarChart.value)
+  }
+  if (habitPieChart.value && !pieChartInstance) {
+    pieChartInstance = echarts.init(habitPieChart.value)
+  }
+  if (schedulePieChart.value && !schedPieInstance) {
+    schedPieInstance = echarts.init(schedulePieChart.value)
+  }
+  if (scheduleBarChart.value && !schedBarInstance) {
+    schedBarInstance = echarts.init(scheduleBarChart.value)
   }
 }
 
-watch(activeTab, (tab) => {
-  switch (tab) {
-    case 'habits':
-      if (habitBarData.value.length === 0) fetchHabitStats()
-      break
-    case 'heatmap':
-      if (heatmapData.value.length === 0) fetchHeatmapData()
-      break
-    case 'schedules':
-      if (schedulePieData.value.length === 0) fetchScheduleStats()
-      break
-    case 'analysis':
-      if (!analysisReport.value) fetchAnalysis()
-      break
+function destroyCharts() {
+  barChartInstance?.dispose()
+  pieChartInstance?.dispose()
+  schedPieInstance?.dispose()
+  schedBarInstance?.dispose()
+  barChartInstance = null
+  pieChartInstance = null
+  schedPieInstance = null
+  schedBarInstance = null
+}
+
+watch(activeTab, async (tab) => {
+  await nextTick()
+  if (tab === 'habits') {
+    initCharts()
+    await fetchHabitStats()
+  } else if (tab === 'checkin') {
+    await fetchCheckinData()
+  } else if (tab === 'schedule') {
+    initCharts()
+    await fetchScheduleStats()
+  } else if (tab === 'ai') {
+    if (!aiReport.value) await fetchAiAnalysis()
   }
 })
 
-onMounted(() => {
-  fetchHabitStats()
-  window.addEventListener('resize', handleResize)
+onMounted(async () => {
+  await nextTick()
+  initCharts()
+  await fetchHabitStats()
+  await fetchCheckinData()
 })
 
 onUnmounted(() => {
-  window.removeEventListener('resize', handleResize)
-  barChartInstance?.dispose()
-  pieChartInstance?.dispose()
-  schedulePieInstance?.dispose()
-  scheduleBarInstance?.dispose()
+  destroyCharts()
 })
 </script>
 
+<script>
+import CalendarHeatmap from '@/components/CalendarHeatmap.vue'
+
+export default {
+  components: { CalendarHeatmap }
+}
+</script>
+
 <style scoped>
-.analytics-container {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.page-header {
-  margin-bottom: 24px;
-}
-
-.page-title {
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
-
-.page-desc {
-  font-size: 14px;
-  color: var(--el-text-color-secondary);
-  margin-top: 4px;
-}
-
-.toolbar {
-  margin-bottom: 20px;
+.date-filter {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  padding: 16px 20px;
 }
 
-.analytics-tabs {
-  border-radius: 12px;
-  min-height: 400px;
+.filter-label {
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
 }
 
-.tab-content {
-  min-height: 350px;
-  padding: 8px 0;
+.analytics-tabs :deep(.el-tabs__header) {
+  margin-bottom: 20px;
 }
 
-.chart-title {
+.analytics-tabs :deep(.el-tabs__nav) {
+  border: none;
+}
+
+.analytics-tabs :deep(.el-tabs__item) {
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  font-weight: 500;
+}
+
+.charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.chart-card {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  border: 1px solid var(--border);
+}
+
+.chart-card h4 {
+  margin: 0 0 16px;
   font-size: 15px;
   font-weight: 600;
-  color: var(--el-text-color-primary);
-  margin-bottom: 16px;
+  color: var(--text-primary);
 }
 
-.chart-container {
+.chart-box {
   width: 100%;
-  height: 350px;
-  margin-bottom: 24px;
+  height: 320px;
 }
 
-.heatmap-header {
-  margin-bottom: 16px;
+.ai-report {
+  padding: 8px;
 }
 
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 80px 0;
-  gap: 12px;
-  color: var(--el-text-color-secondary);
-  font-size: 14px;
-}
-
-.analysis-card {
-  background: linear-gradient(135deg, #f0f5ff 0%, #e6f7ff 100%);
-  border-radius: 12px;
-  padding: 28px;
-}
-
-.analysis-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.analysis-header h3 {
+.ai-report h4 {
+  margin: 0 0 16px;
   font-size: 18px;
   font-weight: 600;
-  color: var(--el-text-color-primary);
+  color: var(--text-primary);
 }
 
-.analysis-body {
-  padding: 8px 0;
-}
-
-.analysis-section {
-  margin-bottom: 20px;
-}
-
-.analysis-section:last-child {
-  margin-bottom: 0;
-}
-
-.section-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--el-color-primary);
-  margin-bottom: 8px;
-}
-
-.section-content {
-  font-size: 14px;
+.report-content {
   line-height: 1.8;
-  color: var(--el-text-color-regular);
-  white-space: pre-wrap;
-}
-
-.analysis-raw {
+  color: var(--text-secondary);
   font-size: 14px;
-  line-height: 1.8;
-  color: var(--el-text-color-regular);
-  white-space: pre-wrap;
 }
 
-.analysis-footer {
-  margin-top: 20px;
-  padding-top: 16px;
-  border-top: 1px solid var(--el-border-color-lighter);
-}
-
-.analysis-date {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
+@media (max-width: 768px) {
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

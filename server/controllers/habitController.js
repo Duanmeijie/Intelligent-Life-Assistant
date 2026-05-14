@@ -1,11 +1,19 @@
 const Habit = require('../models/Habit');
-const { success, error } = require('../utils/response');
+const { success, error, paginated } = require('../utils/response');
 
 const habitController = {
   async list(req, res, next) {
     try {
-      const habits = await Habit.findByUserId(req.user.id);
-      res.json(success(habits));
+      const page = parseInt(req.query.page) || null;
+      const pageSize = parseInt(req.query.pageSize) || null;
+
+      if (page && pageSize) {
+        const result = await Habit.findByUserId(req.user.id, { page, pageSize });
+        res.json(paginated(result.rows, result.total, page, pageSize));
+      } else {
+        const habits = await Habit.findByUserId(req.user.id);
+        res.json(success(habits));
+      }
     } catch (err) {
       next(err);
     }

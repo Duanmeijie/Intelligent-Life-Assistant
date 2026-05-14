@@ -2,7 +2,7 @@ import request from './request'
 
 export function getPosts(params) {
   return request({
-    url: '/social/posts',
+    url: '/social',
     method: 'get',
     params
   })
@@ -10,7 +10,7 @@ export function getPosts(params) {
 
 export function createPost(data) {
   return request({
-    url: '/social/posts',
+    url: '/social',
     method: 'post',
     data
   })
@@ -18,21 +18,21 @@ export function createPost(data) {
 
 export function deletePost(id) {
   return request({
-    url: `/social/posts/${id}`,
+    url: `/social/${id}`,
     method: 'delete'
   })
 }
 
 export function likePost(id) {
   return request({
-    url: `/social/posts/${id}/like`,
+    url: `/social/${id}/like`,
     method: 'post'
   })
 }
 
 export function commentPost(id, data) {
   return request({
-    url: `/social/posts/${id}/comments`,
+    url: `/social/${id}/comment`,
     method: 'post',
     data
   })
@@ -40,7 +40,7 @@ export function commentPost(id, data) {
 
 export function getComments(id) {
   return request({
-    url: `/social/posts/${id}/comments`,
+    url: `/social/${id}/comments`,
     method: 'get'
   })
 }

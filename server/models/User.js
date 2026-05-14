@@ -63,6 +63,14 @@ const User = {
       [hashedPassword, id]
     );
     return result.affectedRows > 0;
+  },
+
+  async updatePasswordByEmail(email, hashedPassword) {
+    const [result] = await pool.query(
+      'UPDATE users SET password = ? WHERE email = ?',
+      [hashedPassword, email]
+    );
+    return result.affectedRows > 0;
   }
 };
 

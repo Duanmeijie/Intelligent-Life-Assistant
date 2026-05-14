@@ -1,195 +1,199 @@
 <template>
-  <div class="schedule-container">
+  <div class="page-container">
     <div class="page-header">
-      <h1 class="page-title">日程管理</h1>
-      <p class="page-desc">管理您的日常行程和重要事项</p>
+      <h1><span class="gradient-text">日程管理</span></h1>
+      <p>管理您的日常行程和重要事项</p>
     </div>
 
-    <el-card shadow="never" class="filter-card">
-      <el-row :gutter="16" align="middle">
-        <el-col :xs="24" :sm="6" :md="5">
-          <el-select
-            v-model="filters.category"
-            placeholder="分类筛选"
-            clearable
-            class="filter-item"
-            @change="handleFilterChange"
-          >
-            <el-option label="全部分类" value="" />
-            <el-option v-for="cat in categoryOptions" :key="cat" :label="cat" :value="cat" />
-          </el-select>
-        </el-col>
-        <el-col :xs="24" :sm="6" :md="5">
-          <el-select
-            v-model="filters.status"
-            placeholder="状态筛选"
-            clearable
-            class="filter-item"
-            @change="handleFilterChange"
-          >
-            <el-option label="全部状态" value="" />
-            <el-option v-for="s in statusOptions" :key="s" :label="s" :value="s" />
-          </el-select>
-        </el-col>
-        <el-col :xs="24" :sm="8" :md="7">
-          <el-date-picker
-            v-model="filters.dateRange"
-            type="daterange"
-            range-separator="至"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
-            value-format="YYYY-MM-DD"
-            class="filter-item"
-            @change="handleFilterChange"
+    <div class="glass-card filter-bar">
+      <div class="filter-row">
+        <el-select v-model="filters.category" placeholder="分类筛选" clearable size="large" style="width:160px">
+          <el-option
+            v-for="cat in categories"
+            :key="cat.value"
+            :label="cat.label"
+            :value="cat.value"
           />
-        </el-col>
-        <el-col :xs="12" :sm="4" :md="4" style="text-align: right;">
-          <el-button type="primary" @click="openCreateDialog">
-            <el-icon><Plus /></el-icon>
-            新建日程
-          </el-button>
-        </el-col>
-      </el-row>
-    </el-card>
+        </el-select>
+        <el-select v-model="filters.status" placeholder="状态筛选" clearable size="large" style="width:160px">
+          <el-option label="待开始" value="pending" />
+          <el-option label="进行中" value="in_progress" />
+          <el-option label="已完成" value="completed" />
+          <el-option label="已取消" value="cancelled" />
+        </el-select>
+        <el-date-picker
+          v-model="filters.dateRange"
+          type="daterange"
+          range-separator="至"
+          start-placeholder="开始日期"
+          end-placeholder="结束日期"
+          size="large"
+          style="width:280px"
+        />
+        <el-button type="primary" @click="fetchData" :icon="Search" size="large">查询</el-button>
+        <div class="filter-spacer"></div>
+        <el-button type="primary" @click="openCreate" :icon="Plus" size="large">
+          添加日程
+        </el-button>
+      </div>
+    </div>
 
-    <el-card shadow="never" class="table-card">
-      <el-table
-        :data="scheduleStore.schedules"
-        v-loading="scheduleStore.loading"
-        stripe
-        style="width: 100%"
-        empty-text="暂无日程数据"
-      >
-        <el-table-column prop="title" label="标题" min-width="160" show-overflow-tooltip />
-        <el-table-column label="分类" width="100">
+    <div class="glass-card">
+      <div v-if="loading" class="empty-state">
+        <el-icon class="is-loading" :size="32"><Loading /></el-icon>
+        <p>加载中...</p>
+      </div>
+
+      <div v-else-if="schedules.length === 0" class="empty-state">
+        <span style="font-size:48px">📅</span>
+        <p>暂无日程，点击上方按钮开始添加</p>
+      </div>
+
+      <el-table v-else :data="schedules" style="width:100%" stripe>
+        <el-table-column prop="title" label="标题" min-width="180">
           <template #default="{ row }">
-            <el-tag :type="categoryTagType(row.category)" size="small" effect="plain">
-              {{ row.category || '未分类' }}
+            <span class="schedule-title">{{ row.title }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="category" label="分类" width="120">
+          <template #default="{ row }">
+            <el-tag effect="plain" round size="small">{{ categoryLabel(row.category) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="时间" width="220">
+          <template #default="{ row }">
+            <div class="time-cell">
+              <span>🕐 {{ formatTime(row.start_time) }}</span>
+              <span class="time-sep">-</span>
+              <span>{{ formatTime(row.end_time) }}</span>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="120">
+          <template #default="{ row }">
+            <el-tag
+              :type="statusType(row.status)"
+              effect="dark"
+              size="small"
+              round
+            >
+              {{ statusLabel(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="开始时间" width="170">
+        <el-table-column label="操作" width="240" fixed="right">
           <template #default="{ row }">
-            {{ formatDateTime(row.startTime) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="结束时间" width="170">
-          <template #default="{ row }">
-            {{ formatDateTime(row.endTime) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="状态" width="100">
-          <template #default="{ row }">
-            <el-tag :type="statusTagType(row.status)" size="small">
-              {{ row.status || '待开始' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right">
-          <template #default="{ row }">
-            <el-button text type="primary" size="small" @click="openEditDialog(row)">编辑</el-button>
-            <el-dropdown trigger="click" @command="(cmd) => handleStatusChange(row, cmd)">
-              <el-button text type="warning" size="small">
-                状态 <el-icon><ArrowDown /></el-icon>
-              </el-button>
+            <el-button size="small" text type="primary" @click="openEdit(row)">编辑</el-button>
+            <el-dropdown @command="(cmd) => handleStatusChange(row.id, cmd)" trigger="click">
+              <el-button size="small" text>状态 ▾</el-button>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <el-dropdown-item command="待开始">待开始</el-dropdown-item>
-                  <el-dropdown-item command="进行中">进行中</el-dropdown-item>
-                  <el-dropdown-item command="已完成">已完成</el-dropdown-item>
-                  <el-dropdown-item command="已取消">已取消</el-dropdown-item>
+                  <el-dropdown-item command="pending">待开始</el-dropdown-item>
+                  <el-dropdown-item command="in_progress">进行中</el-dropdown-item>
+                  <el-dropdown-item command="completed">已完成</el-dropdown-item>
+                  <el-dropdown-item command="cancelled">已取消</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
-            <el-button text type="danger" size="small" @click="handleDelete(row)">删除</el-button>
+            <el-popconfirm title="确定删除该日程吗？" @confirm="handleDelete(row.id)">
+              <template #reference>
+                <el-button size="small" text type="danger">删除</el-button>
+              </template>
+            </el-popconfirm>
           </template>
         </el-table-column>
       </el-table>
 
-      <div class="pagination-wrap">
+      <div class="pagination-wrap" v-if="total > pageSize">
         <el-pagination
-          v-model:current-page="scheduleStore.currentPage"
-          v-model:page-size="scheduleStore.pageSize"
-          :page-sizes="[10, 20, 50, 100]"
-          :total="scheduleStore.total"
-          layout="total, sizes, prev, pager, next, jumper"
-          background
+          v-model:current-page="currentPage"
+          :page-size="pageSize"
+          :total="total"
+          layout="total, prev, pager, next"
           @current-change="handlePageChange"
-          @size-change="handleSizeChange"
         />
       </div>
-    </el-card>
+    </div>
 
     <el-dialog
       v-model="dialogVisible"
-      :title="isEditing ? '编辑日程' : '新建日程'"
-      width="560px"
-      :close-on-click-modal="false"
+      :title="isEditing ? '编辑日程' : '添加日程'"
+      width="520px"
       destroy-on-close
+      class="modern-dialog"
     >
       <el-form
         ref="formRef"
         :model="form"
-        :rules="formRules"
+        :rules="rules"
         label-width="80px"
         label-position="top"
       >
         <el-form-item label="标题" prop="title">
-          <el-input v-model="form.title" placeholder="请输入日程标题" maxlength="100" />
+          <el-input v-model="form.title" placeholder="请输入日程标题" size="large" />
         </el-form-item>
         <el-form-item label="描述" prop="description">
           <el-input
             v-model="form.description"
             type="textarea"
-            :rows="3"
-            placeholder="请输入日程描述（可选）"
-            maxlength="500"
+            :rows="2"
+            placeholder="日程详细描述（可选）"
           />
         </el-form-item>
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="分类" prop="category">
-              <el-select v-model="form.category" placeholder="选择分类" clearable style="width: 100%">
-                <el-option v-for="cat in categoryOptions" :key="cat" :label="cat" :value="cat" />
+              <el-select v-model="form.category" size="large" style="width:100%">
+                <el-option
+                  v-for="cat in categories"
+                  :key="cat.value"
+                  :label="cat.label"
+                  :value="cat.value"
+                />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="状态" prop="status">
-              <el-select v-model="form.status" placeholder="选择状态" style="width: 100%">
-                <el-option v-for="s in statusOptions" :key="s" :label="s" :value="s" />
+              <el-select v-model="form.status" size="large" style="width:100%">
+                <el-option label="待开始" value="pending" />
+                <el-option label="进行中" value="in_progress" />
+                <el-option label="已完成" value="completed" />
+                <el-option label="已取消" value="cancelled" />
               </el-select>
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="开始时间" prop="startTime">
+            <el-form-item label="开始时间" prop="start_time">
               <el-date-picker
-                v-model="form.startTime"
+                v-model="form.start_time"
                 type="datetime"
                 placeholder="选择开始时间"
-                value-format="YYYY-MM-DD HH:mm:ss"
-                style="width: 100%"
+                size="large"
+                style="width:100%"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="结束时间" prop="endTime">
+            <el-form-item label="结束时间" prop="end_time">
               <el-date-picker
-                v-model="form.endTime"
+                v-model="form.end_time"
                 type="datetime"
                 placeholder="选择结束时间"
-                value-format="YYYY-MM-DD HH:mm:ss"
-                style="width: 100%"
+                size="large"
+                style="width:100%"
               />
             </el-form-item>
           </el-col>
         </el-row>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确认</el-button>
+        <el-button @click="dialogVisible = false" size="large">取消</el-button>
+        <el-button type="primary" @click="handleSubmit" :loading="submitting" size="large">
+          {{ isEditing ? '保存修改' : '创建日程' }}
+        </el-button>
       </template>
     </el-dialog>
   </div>
@@ -197,21 +201,27 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import { Plus, Search, Loading } from '@element-plus/icons-vue'
 import { useScheduleStore } from '@/stores/schedule'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, ArrowDown } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 
 const scheduleStore = useScheduleStore()
+const { schedules, total, loading, currentPage, pageSize, fetchSchedules, addSchedule, editSchedule, removeSchedule, changeScheduleStatus, setPage } = scheduleStore
 
 const dialogVisible = ref(false)
 const isEditing = ref(false)
 const editingId = ref(null)
+const submitting = ref(false)
 const formRef = ref(null)
-const submitLoading = ref(false)
 
-const categoryOptions = ['工作', '学习', '生活', '运动', '社交', '娱乐']
-const statusOptions = ['待开始', '进行中', '已完成', '已取消']
+const categories = [
+  { value: 'work', label: '💼 工作' },
+  { value: 'study', label: '📚 学习' },
+  { value: 'life', label: '🏠 生活' },
+  { value: 'health', label: '💪 健康' },
+  { value: 'social', label: '👥 社交' },
+  { value: 'other', label: '📌 其他' },
+]
 
 const filters = reactive({
   category: '',
@@ -222,158 +232,117 @@ const filters = reactive({
 const defaultForm = {
   title: '',
   description: '',
-  category: '',
-  status: '待开始',
-  startTime: '',
-  endTime: ''
+  category: 'work',
+  status: 'pending',
+  start_time: null,
+  end_time: null
 }
 
 const form = reactive({ ...defaultForm })
 
-const formRules = {
-  title: [
-    { required: true, message: '请输入日程标题', trigger: 'blur' },
-    { min: 1, max: 100, message: '标题长度不能超过 100 个字符', trigger: 'blur' }
-  ],
-  startTime: [
-    { required: true, message: '请选择开始时间', trigger: 'change' }
-  ],
-  endTime: [
-    { required: true, message: '请选择结束时间', trigger: 'change' }
-  ]
+const rules = {
+  title: [{ required: true, message: '请输入日程标题', trigger: 'blur' }],
+  category: [{ required: true, message: '请选择分类', trigger: 'change' }],
+  start_time: [{ required: true, message: '请选择开始时间', trigger: 'change' }],
+  end_time: [{ required: true, message: '请选择结束时间', trigger: 'change' }],
 }
 
-function categoryTagType(category) {
-  const map = {
-    '工作': 'primary',
-    '学习': 'success',
-    '生活': 'warning',
-    '运动': 'danger',
-    '社交': 'info',
-    '娱乐': ''
-  }
-  return map[category] || ''
+function categoryLabel(cat) {
+  return categories.find(c => c.value === cat)?.label || cat
 }
 
-function statusTagType(status) {
-  const map = {
-    '待开始': 'info',
-    '进行中': 'warning',
-    '已完成': 'success',
-    '已取消': 'danger'
-  }
+function statusLabel(status) {
+  const map = { pending: '待开始', in_progress: '进行中', completed: '已完成', cancelled: '已取消' }
+  return map[status] || status
+}
+
+function statusType(status) {
+  const map = { pending: 'info', in_progress: 'warning', completed: 'success', cancelled: 'danger' }
   return map[status] || 'info'
 }
 
-function formatDateTime(time) {
-  if (!time) return '--'
-  return dayjs(time).format('YYYY-MM-DD HH:mm')
+function formatTime(time) {
+  if (!time) return ''
+  return dayjs(time).format('MM-DD HH:mm')
 }
 
-function buildParams() {
+function fetchData() {
   const params = {}
   if (filters.category) params.category = filters.category
   if (filters.status) params.status = filters.status
   if (filters.dateRange && filters.dateRange.length === 2) {
-    params.startDate = filters.dateRange[0]
-    params.endDate = filters.dateRange[1]
+    params.startDate = dayjs(filters.dateRange[0]).format('YYYY-MM-DD')
+    params.endDate = dayjs(filters.dateRange[1]).format('YYYY-MM-DD')
   }
-  return params
+  fetchSchedules(params)
 }
 
-async function fetchData() {
-  const params = buildParams()
-  await scheduleStore.fetchSchedules(params)
-}
-
-function handleFilterChange() {
-  scheduleStore.setPage(1)
-  fetchData()
-}
-
-function handlePageChange(page) {
-  scheduleStore.setPage(page)
-  fetchData()
-}
-
-function handleSizeChange(size) {
-  scheduleStore.setPageSize(size)
-  scheduleStore.setPage(1)
-  fetchData()
-}
-
-function resetForm() {
-  Object.assign(form, defaultForm)
-}
-
-function openCreateDialog() {
+function openCreate() {
   isEditing.value = false
   editingId.value = null
-  resetForm()
+  Object.assign(form, { ...defaultForm })
   dialogVisible.value = true
 }
 
-function openEditDialog(row) {
+function openEdit(schedule) {
   isEditing.value = true
-  editingId.value = row.id
-  form.title = row.title
-  form.description = row.description || ''
-  form.category = row.category || ''
-  form.status = row.status || '待开始'
-  form.startTime = row.startTime || ''
-  form.endTime = row.endTime || ''
+  editingId.value = schedule.id
+  Object.assign(form, {
+    title: schedule.title,
+    description: schedule.description || '',
+    category: schedule.category || 'work',
+    status: schedule.status || 'pending',
+    start_time: schedule.start_time ? new Date(schedule.start_time) : null,
+    end_time: schedule.end_time ? new Date(schedule.end_time) : null
+  })
   dialogVisible.value = true
 }
 
 async function handleSubmit() {
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) return
-
-  submitLoading.value = true
+  submitting.value = true
   try {
+    const data = {
+      title: form.title,
+      description: form.description,
+      category: form.category,
+      status: form.status,
+      start_time: form.start_time,
+      end_time: form.end_time
+    }
     if (isEditing.value) {
-      await scheduleStore.editSchedule(editingId.value, { ...form })
+      await editSchedule(editingId.value, data)
     } else {
-      await scheduleStore.addSchedule({ ...form })
+      await addSchedule(data)
     }
     dialogVisible.value = false
-  } catch (error) {
-    const msg = error?.response?.data?.message || error.message || '操作失败'
-    ElMessage.error(msg)
+  } catch (err) {
+    console.error(err)
   } finally {
-    submitLoading.value = false
+    submitting.value = false
   }
 }
 
-async function handleStatusChange(row, newStatus) {
-  if (row.status === newStatus) return
+async function handleStatusChange(id, status) {
   try {
-    await scheduleStore.changeScheduleStatus(row.id, newStatus)
-    ElMessage.success('状态已更新')
-  } catch (error) {
-    const msg = error?.response?.data?.message || error.message || '更新状态失败'
-    ElMessage.error(msg)
+    await changeScheduleStatus(id, status)
+  } catch (err) {
+    console.error(err)
   }
 }
 
-async function handleDelete(row) {
+async function handleDelete(id) {
   try {
-    await ElMessageBox.confirm(
-      `确定要删除日程「${row.title}」吗？此操作不可恢复。`,
-      '确认删除',
-      {
-        confirmButtonText: '确定删除',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
-    await scheduleStore.removeSchedule(row.id)
-    ElMessage.success('删除成功')
-  } catch (error) {
-    if (error === 'cancel') return
-    const msg = error?.response?.data?.message || error.message || '删除失败'
-    ElMessage.error(msg)
+    await removeSchedule(id)
+  } catch (err) {
+    console.error(err)
   }
+}
+
+function handlePageChange(page) {
+  setPage(page)
+  fetchData()
 }
 
 onMounted(() => {
@@ -382,44 +351,41 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.schedule-container {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.page-header {
+.filter-bar {
   margin-bottom: 24px;
 }
 
-.page-title {
-  font-size: 24px;
+.filter-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.filter-spacer {
+  flex: 1;
+}
+
+.schedule-title {
   font-weight: 600;
-  color: var(--el-text-color-primary);
+  color: var(--text-primary);
 }
 
-.page-desc {
-  font-size: 14px;
-  color: var(--el-text-color-secondary);
-  margin-top: 4px;
+.time-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
 }
 
-.filter-card {
-  border-radius: 12px;
-  margin-bottom: 20px;
-}
-
-.filter-item {
-  width: 100%;
-  margin-bottom: 8px;
-}
-
-.table-card {
-  border-radius: 12px;
+.time-sep {
+  color: var(--text-tertiary);
 }
 
 .pagination-wrap {
   display: flex;
-  justify-content: flex-end;
-  padding: 20px 0 0;
+  justify-content: center;
+  padding-top: 20px;
 }
 </style>

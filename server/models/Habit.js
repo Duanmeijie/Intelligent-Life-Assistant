@@ -1,7 +1,28 @@
 const pool = require('../config/db');
 
 const Habit = {
-  async findByUserId(userId) {
+  async findByUserId(userId, options = {}) {
+    const { page, pageSize, includeInactive } = options;
+
+    if (page && pageSize) {
+      const offset = (page - 1) * pageSize;
+      const whereClause = includeInactive
+        ? 'WHERE user_id = ?'
+        : 'WHERE user_id = ? AND is_active = 1';
+
+      const [rows] = await pool.query(
+        `SELECT * FROM habits ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+        [userId, pageSize, offset]
+      );
+
+      const [[{ total }]] = await pool.query(
+        `SELECT COUNT(*) as total FROM habits ${whereClause}`,
+        [userId]
+      );
+
+      return { rows, total };
+    }
+
     const [rows] = await pool.query(
       'SELECT * FROM habits WHERE user_id = ? AND is_active = 1 ORDER BY created_at DESC',
       [userId]

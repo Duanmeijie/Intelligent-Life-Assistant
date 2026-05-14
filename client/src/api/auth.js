@@ -1,18 +1,18 @@
 import request from './request'
 
-export function login(username, password) {
+export function login(data) {
   return request({
     url: '/auth/login',
     method: 'post',
-    data: { username, password }
+    data
   })
 }
 
-export function register(username, email, password) {
+export function register(data) {
   return request({
     url: '/auth/register',
     method: 'post',
-    data: { username, email, password }
+    data
   })
 }
 
@@ -31,9 +31,40 @@ export function updateProfile(data) {
   })
 }
 
-export function updatePassword(data) {
+export function changePassword(data) {
   return request({
     url: '/auth/password',
+    method: 'put',
+    data
+  })
+}
+
+export function forgotPassword(data) {
+  return request({
+    url: '/auth/forgot-password',
+    method: 'post',
+    data
+  })
+}
+
+export function resetPassword(data) {
+  return request({
+    url: '/auth/reset-password',
+    method: 'post',
+    data
+  })
+}
+
+export function getSettings() {
+  return request({
+    url: '/auth/settings',
+    method: 'get'
+  })
+}
+
+export function updateSettings(data) {
+  return request({
+    url: '/auth/settings',
     method: 'put',
     data
   })

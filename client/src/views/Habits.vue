@@ -1,469 +1,418 @@
 <template>
-  <div class="habits-container">
+  <div class="page-container">
     <div class="page-header">
-      <h1 class="page-title">习惯追踪</h1>
-      <p class="page-desc">培养好习惯，记录每一次坚持</p>
+      <h1><span class="gradient-text">习惯追踪</span></h1>
+      <p>培养好习惯，记录每一次坚持</p>
     </div>
 
-    <el-row :gutter="20" class="stat-row">
-      <el-col :xs="12" :sm="6">
-        <el-card shadow="hover" class="stat-card-sm">
-          <div class="stat-body">
-            <span class="stat-num">{{ totalCount }}</span>
-            <span class="stat-lbl">习惯总数</span>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="12" :sm="6">
-        <el-card shadow="hover" class="stat-card-sm">
-          <div class="stat-body">
-            <span class="stat-num">{{ activeCount }}</span>
-            <span class="stat-lbl">活跃习惯</span>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="12" style="text-align: right;">
-        <el-button type="primary" size="large" @click="openCreateDialog">
-          <el-icon><Plus /></el-icon>
+    <div class="stats-row">
+      <div class="stat-card primary">
+        <div class="stat-icon">📋</div>
+        <div class="stat-info">
+          <span class="stat-value">{{ habits.length }}</span>
+          <span class="stat-label">全部习惯</span>
+        </div>
+      </div>
+      <div class="stat-card success">
+        <div class="stat-icon">✅</div>
+        <div class="stat-info">
+          <span class="stat-value">{{ activeCount }}</span>
+          <span class="stat-label">进行中</span>
+        </div>
+      </div>
+      <div class="stat-card warning">
+        <div class="stat-icon">🔥</div>
+        <div class="stat-info">
+          <span class="stat-value">{{ totalStreak }}</span>
+          <span class="stat-label">总连续天数</span>
+        </div>
+      </div>
+      <div class="stat-card info">
+        <div class="stat-icon">🎯</div>
+        <div class="stat-info">
+          <span class="stat-value">{{ completionRate }}%</span>
+          <span class="stat-label">完成率</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="glass-card">
+      <div class="card-header">
+        <h3>我的习惯</h3>
+        <el-button type="primary" @click="openCreate" :icon="Plus" size="large">
           添加习惯
         </el-button>
-      </el-col>
-    </el-row>
-
-    <div v-loading="habitStore.loading" class="habit-grid">
-      <div v-if="habitStore.habits.length === 0 && !habitStore.loading" class="empty-state">
-        <el-icon :size="64" color="#c0c4cc"><Check /></el-icon>
-        <h3>还没有习惯</h3>
-        <p>开始创建您的第一个习惯吧</p>
-        <el-button type="primary" @click="openCreateDialog">创建习惯</el-button>
       </div>
 
-      <el-row v-else :gutter="20">
-        <el-col
-          v-for="habit in habitStore.habits"
+      <div v-if="loading" class="empty-state">
+        <el-icon class="is-loading" :size="32"><Loading /></el-icon>
+        <p>加载中...</p>
+      </div>
+
+      <div v-else-if="habits.length === 0" class="empty-state">
+        <span style="font-size:48px">🌱</span>
+        <p>还没有习惯，点击上方按钮开始添加吧</p>
+      </div>
+
+      <div v-else class="habits-grid">
+        <div
+          v-for="habit in habits"
           :key="habit.id"
-          :xs="24"
-          :sm="12"
-          :md="8"
-          :lg="6"
+          class="habit-card"
+          :class="{ inactive: !habit.is_active }"
         >
-          <el-card shadow="hover" class="habit-card" :body-style="{ padding: '0' }">
-            <div class="habit-card-header" :style="{ borderLeftColor: habit.color || '#409eff' }">
-              <div class="habit-card-top">
-                <div class="habit-color-dot" :style="{ background: habit.color || '#409eff' }" />
-                <el-switch
-                  v-model="habit.active"
-                  :loading="toggleLoadingMap[habit.id]"
-                  size="small"
-                  @change="(val) => handleToggleActive(habit, val)"
-                />
-              </div>
-              <h3 class="habit-card-title">{{ habit.name }}</h3>
-              <p v-if="habit.description" class="habit-card-desc">{{ habit.description }}</p>
+          <div class="habit-top">
+            <div class="habit-icon" :style="{ background: habit.color || '#6366f1' }">
+              {{ getCategoryEmoji(habit.category) }}
             </div>
-            <div class="habit-card-body">
-              <div class="habit-meta">
-                <el-tag size="small" effect="plain" type="primary">
-                  {{ frequencyLabel(habit.frequency) }}
-                </el-tag>
-                <el-tag
-                  v-if="habit.category"
-                  size="small"
-                  effect="plain"
-                  :type="categoryTagType(habit.category)"
-                >
-                  {{ habit.category }}
-                </el-tag>
-                <el-tag v-if="habit.reminderTime" size="small" effect="plain" type="info">
-                  <el-icon style="vertical-align: middle; margin-right: 2px;"><Clock /></el-icon>
-                  {{ habit.reminderTime }}
-                </el-tag>
-              </div>
-            </div>
-            <div class="habit-card-actions">
-              <el-button text type="primary" size="small" @click="openEditDialog(habit)">编辑</el-button>
-              <el-button text type="danger" size="small" @click="handleDelete(habit)">删除</el-button>
-            </div>
-          </el-card>
-        </el-col>
-      </el-row>
+            <el-switch v-model="habit.is_active" @change="toggleActive(habit)" />
+          </div>
+          <div class="habit-body">
+            <h4>{{ habit.name }}</h4>
+            <p v-if="habit.description">{{ habit.description }}</p>
+          </div>
+          <div class="habit-meta">
+            <el-tag size="small" effect="plain" round>{{ categoryLabel(habit.category) }}</el-tag>
+            <el-tag size="small" effect="plain" round>{{ freqLabel(habit.frequency) }}</el-tag>
+            <span v-if="habit.reminder_time" class="reminder">
+              🔔 {{ habit.reminder_time }}
+            </span>
+          </div>
+          <div class="habit-actions">
+            <el-button size="small" text @click="openEdit(habit)">编辑</el-button>
+            <el-popconfirm title="确定删除该习惯吗？" @confirm="handleDelete(habit.id)">
+              <template #reference>
+                <el-button size="small" text type="danger">删除</el-button>
+              </template>
+            </el-popconfirm>
+          </div>
+        </div>
+      </div>
     </div>
 
     <el-dialog
       v-model="dialogVisible"
       :title="isEditing ? '编辑习惯' : '添加习惯'"
       width="520px"
-      :close-on-click-modal="false"
       destroy-on-close
+      class="modern-dialog"
     >
       <el-form
         ref="formRef"
         :model="form"
-        :rules="formRules"
-        label-width="90px"
+        :rules="rules"
+        label-width="80px"
         label-position="top"
       >
         <el-form-item label="习惯名称" prop="name">
-          <el-input v-model="form.name" placeholder="请输入习惯名称" maxlength="50" />
+          <el-input v-model="form.name" placeholder="请输入习惯名称" size="large" />
         </el-form-item>
         <el-form-item label="描述" prop="description">
           <el-input
             v-model="form.description"
             type="textarea"
             :rows="2"
-            placeholder="请输入习惯描述（可选）"
-            maxlength="200"
+            placeholder="简单描述一下这个习惯"
           />
         </el-form-item>
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="频率" prop="frequency">
-              <el-radio-group v-model="form.frequency">
-                <el-radio-button value="daily">每日</el-radio-button>
-                <el-radio-button value="weekly">每周</el-radio-button>
-                <el-radio-button value="monthly">每月</el-radio-button>
-              </el-radio-group>
+              <el-select v-model="form.frequency" size="large" style="width:100%">
+                <el-option label="每天" value="daily" />
+                <el-option label="每周" value="weekly" />
+                <el-option label="每月" value="monthly" />
+              </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="分类" prop="category">
-              <el-select v-model="form.category" placeholder="选择分类" clearable style="width: 100%">
-                <el-option v-for="cat in categoryOptions" :key="cat" :label="cat" :value="cat" />
+              <el-select v-model="form.category" size="large" style="width:100%">
+                <el-option
+                  v-for="cat in categories"
+                  :key="cat.value"
+                  :label="cat.label"
+                  :value="cat.value"
+                />
               </el-select>
             </el-form-item>
           </el-col>
         </el-row>
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="标识颜色" prop="color">
-              <el-color-picker v-model="form.color" show-alpha :predefine="predefineColors" />
+            <el-form-item label="颜色标识">
+              <el-color-picker v-model="form.color" size="large" show-alpha />
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="提醒时间" prop="reminderTime">
+            <el-form-item label="提醒时间">
               <el-time-picker
-                v-model="form.reminderTime"
-                placeholder="选择提醒时间"
+                v-model="form.reminder_time"
+                format="HH:mm"
                 value-format="HH:mm"
-                style="width: 100%"
+                placeholder="选择时间"
+                size="large"
+                style="width:100%"
               />
             </el-form-item>
           </el-col>
         </el-row>
-        <el-form-item label="是否启用" prop="active">
-          <el-switch v-model="form.active" />
-        </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确认</el-button>
+        <el-button @click="dialogVisible = false" size="large">取消</el-button>
+        <el-button type="primary" @click="handleSubmit" :loading="submitting" size="large">
+          {{ isEditing ? '保存修改' : '创建习惯' }}
+        </el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, reactive } from 'vue'
+import { Plus, Loading } from '@element-plus/icons-vue'
 import { useHabitStore } from '@/stores/habit'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Clock } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 
 const habitStore = useHabitStore()
+const { habits, loading, fetchHabits, addHabit, editHabit, removeHabit } = habitStore
 
 const dialogVisible = ref(false)
 const isEditing = ref(false)
 const editingId = ref(null)
+const submitting = ref(false)
 const formRef = ref(null)
-const submitLoading = ref(false)
-const toggleLoadingMap = reactive({})
 
-const categoryOptions = ['健康', '学习', '工作', '生活', '运动', '阅读', '冥想', '社交']
-
-const predefineColors = [
-  '#409eff',
-  '#67c23a',
-  '#e6a23c',
-  '#f56c6c',
-  '#909399',
-  '#9b59b6',
-  '#1abc9c',
-  '#e74c3c',
-  '#3498db',
-  '#f39c12'
+const categories = [
+  { value: 'health', label: '💪 健康' },
+  { value: 'study', label: '📚 学习' },
+  { value: 'work', label: '💼 工作' },
+  { value: 'life', label: '🏠 生活' },
+  { value: 'sports', label: '⚽ 运动' },
+  { value: 'reading', label: '📖 阅读' },
+  { value: 'meditation', label: '🧘 冥想' },
+  { value: 'social', label: '👥 社交' },
 ]
 
 const defaultForm = {
   name: '',
   description: '',
   frequency: 'daily',
-  category: '',
-  color: '#409eff',
-  reminderTime: '',
-  active: true
+  category: 'health',
+  color: '#6366f1',
+  reminder_time: null,
+  is_active: true
 }
 
 const form = reactive({ ...defaultForm })
 
-const formRules = {
-  name: [
-    { required: true, message: '请输入习惯名称', trigger: 'blur' },
-    { min: 1, max: 50, message: '名称长度不能超过 50 个字符', trigger: 'blur' }
-  ],
-  frequency: [
-    { required: true, message: '请选择频率', trigger: 'change' }
-  ]
+const rules = {
+  name: [{ required: true, message: '请输入习惯名称', trigger: 'blur' }],
+  frequency: [{ required: true, message: '请选择频率', trigger: 'change' }],
+  category: [{ required: true, message: '请选择分类', trigger: 'change' }],
 }
 
-const totalCount = computed(() => habitStore.habits.length)
-const activeCount = computed(() => habitStore.habits.filter(h => h.active !== false).length)
-
-function frequencyLabel(frequency) {
+function getCategoryEmoji(category) {
   const map = {
-    'daily': '每日',
-    'weekly': '每周',
-    'monthly': '每月',
-    'custom': '自定义'
+    health: '💪', study: '📚', work: '💼', life: '🏠',
+    sports: '⚽', reading: '📖', meditation: '🧘', social: '👥'
   }
-  return map[frequency] || frequency || '每日'
+  return map[category] || '⭐'
 }
 
-function categoryTagType(category) {
-  const map = {
-    '健康': 'success',
-    '学习': 'primary',
-    '工作': 'warning',
-    '生活': '',
-    '运动': 'danger',
-    '阅读': 'info',
-    '冥想': 'info',
-    '社交': ''
-  }
-  return map[category] || ''
+function categoryLabel(cat) {
+  return categories.find(c => c.value === cat)?.label || cat
 }
 
-function resetForm() {
-  Object.assign(form, defaultForm)
+function freqLabel(freq) {
+  const map = { daily: '每天', weekly: '每周', monthly: '每月' }
+  return map[freq] || freq
 }
 
-function openCreateDialog() {
+const activeCount = computed(() => habits.value.filter(h => h.is_active).length)
+const totalStreak = computed(() => habits.value.reduce((s, h) => s + (h.current_streak || 0), 0))
+const completionRate = computed(() => {
+  if (habits.value.length === 0) return 0
+  const valid = habits.value.filter(h => h.completion_rate !== undefined)
+  if (valid.length === 0) return 0
+  return Math.round(valid.reduce((s, h) => s + (h.completion_rate || 0), 0) / valid.length)
+})
+
+function openCreate() {
   isEditing.value = false
   editingId.value = null
-  resetForm()
+  Object.assign(form, { ...defaultForm })
   dialogVisible.value = true
 }
 
-function openEditDialog(habit) {
+function openEdit(habit) {
   isEditing.value = true
   editingId.value = habit.id
-  form.name = habit.name
-  form.description = habit.description || ''
-  form.frequency = habit.frequency || 'daily'
-  form.category = habit.category || ''
-  form.color = habit.color || '#409eff'
-  form.reminderTime = habit.reminderTime || ''
-  form.active = habit.active !== false
+  Object.assign(form, {
+    name: habit.name,
+    description: habit.description || '',
+    frequency: habit.frequency || 'daily',
+    category: habit.category || 'health',
+    color: habit.color || '#6366f1',
+    reminder_time: habit.reminder_time || null,
+    is_active: habit.is_active
+  })
   dialogVisible.value = true
 }
 
 async function handleSubmit() {
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) return
-
-  submitLoading.value = true
+  submitting.value = true
   try {
-    const data = { ...form }
+    const data = {
+      name: form.name,
+      description: form.description,
+      frequency: form.frequency,
+      category: form.category,
+      color: form.color,
+      reminder_time: form.reminder_time || null,
+      is_active: form.is_active
+    }
     if (isEditing.value) {
-      await habitStore.editHabit(editingId.value, data)
+      await editHabit(editingId.value, data)
     } else {
-      await habitStore.addHabit(data)
+      await addHabit(data)
     }
     dialogVisible.value = false
-  } catch (error) {
-    const msg = error?.response?.data?.message || error.message || '操作失败'
-    ElMessage.error(msg)
+  } catch (err) {
+    console.error(err)
   } finally {
-    submitLoading.value = false
+    submitting.value = false
   }
 }
 
-async function handleToggleActive(habit, val) {
-  toggleLoadingMap[habit.id] = true
+async function toggleActive(habit) {
   try {
-    await habitStore.editHabit(habit.id, { active: val })
-    ElMessage.success(val ? '习惯已启用' : '习惯已停用')
-  } catch (error) {
-    habit.active = !val
-    const msg = error?.response?.data?.message || error.message || '更新状态失败'
-    ElMessage.error(msg)
-  } finally {
-    toggleLoadingMap[habit.id] = false
+    await editHabit(habit.id, { is_active: habit.is_active })
+  } catch {
+    habit.is_active = !habit.is_active
   }
 }
 
-async function handleDelete(habit) {
+async function handleDelete(id) {
   try {
-    await ElMessageBox.confirm(
-      `确定要删除习惯「${habit.name}」吗？相关的打卡记录也将被删除。`,
-      '确认删除',
-      {
-        confirmButtonText: '确定删除',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
-    await habitStore.removeHabit(habit.id)
-    ElMessage.success('删除成功')
-  } catch (error) {
-    if (error === 'cancel') return
-    const msg = error?.response?.data?.message || error.message || '删除失败'
-    ElMessage.error(msg)
+    await removeHabit(id)
+  } catch (err) {
+    console.error(err)
   }
 }
 
 onMounted(() => {
-  habitStore.fetchHabits()
+  fetchHabits()
 })
 </script>
 
 <style scoped>
-.habits-container {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.page-header {
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
   margin-bottom: 24px;
 }
 
-.page-title {
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
-
-.page-desc {
-  font-size: 14px;
-  color: var(--el-text-color-secondary);
-  margin-top: 4px;
-}
-
-.stat-row {
-  margin-bottom: 24px;
-  align-items: center;
-}
-
-.stat-card-sm {
-  border-radius: 12px;
-  margin-bottom: 20px;
-}
-
-.stat-body {
+.card-header {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
   align-items: center;
-  padding: 8px 0;
+  margin-bottom: 24px;
 }
 
-.stat-num {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--el-color-primary);
-  line-height: 1.2;
+.card-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
-.stat-lbl {
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
-  margin-top: 4px;
-}
-
-.habit-grid {
-  min-height: 200px;
+.habits-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
 }
 
 .habit-card {
-  border-radius: 12px;
-  margin-bottom: 20px;
-  transition: transform 0.2s, box-shadow 0.2s;
-  overflow: hidden;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  transition: all var(--transition-base);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .habit-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  border-color: var(--primary);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
 }
 
-.habit-card-header {
-  padding: 20px 20px 16px;
-  border-left: 4px solid #409eff;
+.habit-card.inactive {
+  opacity: 0.55;
 }
 
-.habit-card-top {
+.habit-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.habit-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
+  justify-content: center;
+  font-size: 22px;
+  color: #fff;
 }
 
-.habit-color-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-}
-
-.habit-card-title {
+.habit-body h4 {
+  margin: 0 0 4px;
   font-size: 16px;
   font-weight: 600;
-  color: var(--el-text-color-primary);
-  margin-bottom: 6px;
+  color: var(--text-primary);
 }
 
-.habit-card-desc {
+.habit-body p {
+  margin: 0;
   font-size: 13px;
-  color: var(--el-text-color-secondary);
+  color: var(--text-secondary);
   line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.habit-card-body {
-  padding: 0 20px 16px;
 }
 
 .habit-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-}
-
-.habit-card-actions {
-  display: flex;
-  justify-content: flex-end;
-  padding: 10px 20px;
-  border-top: 1px solid var(--el-border-color-lighter);
-  background: var(--el-color-primary-light-9);
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 80px 0;
-  gap: 12px;
-  color: var(--el-text-color-secondary);
 }
 
-.empty-state h3 {
-  font-size: 18px;
-  color: var(--el-text-color-primary);
-  margin-top: 8px;
+.reminder {
+  font-size: 12px;
+  color: var(--text-tertiary);
 }
 
-.empty-state p {
-  font-size: 14px;
-  margin-bottom: 8px;
+.habit-actions {
+  display: flex;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 768px) {
+  .stats-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .habits-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

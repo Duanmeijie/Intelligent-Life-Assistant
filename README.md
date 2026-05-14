@@ -25,7 +25,7 @@
 
 ## 项目简介
 
-智能生活助手（Intelligent Life Assistant）是一个全栈 Web 应用，旨在通过数字化的手段帮助用户科学管理时间、培养良好习惯。系统涵盖了日程管理、习惯追踪、每日打卡、社交社区、数据可视化和 AI 智能推荐六大核心功能模块。
+智能生活助手（Intelligent Life Assistant）是一个全栈 Web 应用，旨在通过数字化的手段帮助用户科学管理时间、培养良好习惯。系统涵盖了日程管理、习惯追踪、每日打卡、社交社区、数据可视化、AI 智能推荐、成就系统、通知中心、目标管理、周报总结等核心功能模块。
 
 ### 目标用户
 
@@ -40,7 +40,9 @@
 - 用户注册（用户名 + 邮箱 + 密码，bcrypt 加密）
 - 用户登录（JWT Token 认证，有效期 7 天）
 - 个人信息编辑（昵称、头像、个性签名）
-- 密码修改
+- 密码修改与找回（邮箱验证码重置）
+- 用户偏好设置（暗黑/明亮主题切换、通知开关）
+- **记住我**功能
 
 ### 时间管理
 - 日程创建、编辑、删除、查看
@@ -51,8 +53,9 @@
 ### 习惯追踪
 - 习惯创建、编辑、删除
 - 习惯频率设置（每日、每周、每月、自定义）
-- 习惯分类管理
+- 习惯分类管理与颜色标记
 - 习惯活跃/暂停控制
+- **快速打卡**按钮
 
 ### 打卡记录
 - 每日打卡签到
@@ -62,10 +65,12 @@
 - 打卡完成率统计
 
 ### 社交社区
-- 动态发布（支持多图片）
+- 动态发布（**支持多图片上传**）
+- **图片预览与灯箱查看**
 - 点赞与取消点赞
-- 动态评论
+- 动态评论（支持嵌套回复）
 - 社区广场与个人时间线
+- 分页加载
 
 ### 数据可视化
 - 习惯完成率统计图表（ECharts 柱状图）
@@ -77,6 +82,32 @@
 - 基于打卡数据的智能习惯推荐
 - 个性化日程优化建议
 - 效率分析报告（含强弱项识别与改进建议）
+
+### 成就系统
+- 14 种内置成就（初次打卡、连续打卡、习惯创建、社区活跃等）
+- 用户成就收集与展示
+- 成就进度追踪
+
+### 通知中心
+- 点赞通知、评论通知、系统通知、成就通知、提醒通知
+- 通知已读/未读管理
+- 未读数量角标提示
+- 批量已读/删除
+
+### 目标管理
+- 目标创建、编辑、删除
+- 目标进度追踪（当前值/目标值）
+- 目标分类（健康、学习、工作、生活、运动、财务、其他）
+- 目标状态管理（进行中/已完成/已放弃）
+
+### 周报与每日总结
+- 自动生成每周数据报告
+- 每日心情评分与日志记录
+- 睡眠、饮水、运动、生产力等健康指标追踪
+
+### 文件上传
+- 支持单文件/多文件上传（最多 9 个文件）
+- 图片上传集成到社交动态发布
 
 ---
 
@@ -107,13 +138,18 @@
 | jsonwebtoken | ^9.0.2 | JWT Token 签发与验证 |
 | bcryptjs | ^2.4.3 | 密码加密哈希 |
 | express-validator | ^7.0.1 | 请求参数校验 |
+| express-rate-limit | ^8.5.0 | API 限流保护 |
+| helmet | ^8.1.0 | HTTP 安全头 |
+| cors | ^2.8.5 | 跨域支持 |
+| multer | ^2.1.0 | 文件上传处理 |
+| uuid | ^14.0.0 | 唯一 ID 生成 |
 | morgan | ^1.10.0 | HTTP 请求日志 |
 
 ### 数据库
 
 | 数据库 | 版本 | 用途 |
 |--------|------|------|
-| MySQL | 8.0+ | 主业务数据存储（7 张表） |
+| MySQL | 8.0+ | 主业务数据存储（13 张表） |
 | Redis | 6.0+ | 缓存 / Token 黑名单 |
 
 ---
@@ -142,6 +178,7 @@
 │  │ · 认证   │ │  (路由)    │ │  (控制器)     │  │
 │  │ · 校验   │ │            │ │              │  │
 │  │ · 日志   │ │            │ │              │  │
+│  │ · 限流   │ │            │ │              │  │
 │  │ · 错误处理│ │            │ │              │  │
 │  └──────────┘ └────────────┘ └──────┬───────┘  │
 │                                      │          │
@@ -238,6 +275,16 @@ npm run dev
 
 打开浏览器访问：[http://localhost:5173](http://localhost:5173)
 
+### 6. 测试账号
+
+| 用户名 | 密码 | 说明 |
+|--------|------|------|
+| testuser | Test123456 | 主要测试用户，包含完整数据 |
+| admin | Test123456 | 管理员用户 |
+| user2 | Test123456 | 活力小张 |
+| user3 | Test123456 | 学霸小李 |
+| user4 | Test123456 | 文艺小王 |
+
 ---
 
 ## 环境变量配置
@@ -273,81 +320,35 @@ JWT_EXPIRES_IN=7d
 
 ## 数据库表结构
 
-系统共包含 7 张数据表，使用 InnoDB 引擎 + utf8mb4 字符集：
+系统共包含 **13 张数据表**，使用 InnoDB 引擎 + utf8mb4 字符集：
 
-### users（用户表）
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | INT PRIMARY KEY AUTO_INCREMENT | 用户 ID |
-| username | VARCHAR(50) UNIQUE NOT NULL | 用户名 |
-| email | VARCHAR(100) UNIQUE NOT NULL | 邮箱 |
-| password | VARCHAR(255) NOT NULL | 密码（bcrypt 加密） |
-| nickname | VARCHAR(50) | 昵称 |
-| avatar | VARCHAR(255) | 头像 URL |
-| bio | VARCHAR(255) | 个性签名 |
-| status | TINYINT DEFAULT 1 | 状态（0=禁用, 1=正常） |
-| created_at | DATETIME | 创建时间 |
-| updated_at | DATETIME | 更新时间 |
+### 核心业务表
 
-### schedules（日程表）
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | INT PRIMARY KEY AUTO_INCREMENT | 日程 ID |
-| user_id | INT NOT NULL | 用户 ID（FK） |
-| title | VARCHAR(100) NOT NULL | 标题 |
-| description | TEXT | 描述 |
-| category | ENUM('work','study','life','sports','other') | 分类 |
-| status | ENUM('pending','in_progress','completed','cancelled') | 状态 |
-| start_time | DATETIME NOT NULL | 开始时间 |
-| end_time | DATETIME NOT NULL | 结束时间 |
+| 表名 | 说明 | 记录数 |
+|------|------|--------|
+| users | 用户表 | 用户名、邮箱、密码(bcrypt)、昵称、头像、个性签名 |
+| schedules | 日程表 | 标题、描述、分类、状态(待办/进行中/已完成/已取消)、时间 |
+| habits | 习惯表 | 名称、描述、频率(每日/每周/每月/自定义)、分类、颜色、提醒时间 |
+| checkins | 打卡记录表 | 习惯关联、打卡日期、备注（防重复打卡） |
+| social_posts | 社交动态表 | 内容、图片(JSON)、点赞数、评论数 |
+| social_comments | 评论表 | 动态关联、用户关联、父评论(嵌套回复)、内容 |
+| social_likes | 点赞表 | 用户关联、动态关联（防重复点赞） |
 
-### habits（习惯表）
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | INT PRIMARY KEY AUTO_INCREMENT | 习惯 ID |
-| user_id | INT NOT NULL | 用户 ID（FK） |
-| name | VARCHAR(100) NOT NULL | 习惯名称 |
-| frequency | ENUM('daily','weekly','monthly','custom') | 频率 |
-| color | VARCHAR(7) DEFAULT '#409EFF' | 颜色标记 |
-| is_active | TINYINT DEFAULT 1 | 是否启用 |
+### 扩展功能表
 
-### checkins（打卡记录表）
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | INT PRIMARY KEY AUTO_INCREMENT | 记录 ID |
-| user_id | INT NOT NULL | 用户 ID（FK） |
-| habit_id | INT NOT NULL | 习惯 ID（FK） |
-| checkin_date | DATE NOT NULL | 打卡日期 |
-| UNIQUE(habit_id, checkin_date) | 防止重复打卡 |
+| 表名 | 说明 | 主要字段 |
+|------|------|----------|
+| achievements | 成就定义表 | 编码、名称、描述、图标、分类、阈值 |
+| user_achievements | 用户成就表 | 用户关联、成就关联（防重复获得） |
+| notifications | 通知表 | 类型(点赞/评论/系统/成就/提醒)、标题、内容、已读状态 |
+| password_resets | 密码重置表 | 邮箱、Token、过期时间 |
+| user_settings | 用户偏好设置表 | 主题(明/暗)、语言、通知开关 |
+| weekly_reports | 周报表 | 周起止日期、总打卡数、完成率、心情、总结 |
+| daily_summaries | 每日总结表 | 日期、心情评分、日记、睡眠/饮水/运动/生产力指标 |
+| user_goals | 用户目标表 | 标题、目标/当前值、单位、分类、状态(进行中/已完成/已放弃) |
+| uploads | 文件上传记录 | 文件名、存储路径、文件大小、MIME类型 |
 
-### social_posts（社交动态表）
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | INT PRIMARY KEY AUTO_INCREMENT | 动态 ID |
-| user_id | INT NOT NULL | 用户 ID（FK） |
-| content | TEXT NOT NULL | 内容 |
-| images | JSON | 图片列表 |
-| likes_count | INT DEFAULT 0 | 点赞数 |
-| comments_count | INT DEFAULT 0 | 评论数 |
-
-### social_comments（评论表）
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | INT PRIMARY KEY AUTO_INCREMENT | 评论 ID |
-| post_id | INT NOT NULL | 动态 ID（FK） |
-| user_id | INT NOT NULL | 用户 ID（FK） |
-| parent_id | INT | 父评论 ID（回复） |
-| content | TEXT NOT NULL | 评论内容 |
-
-### social_likes（点赞表）
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | INT PRIMARY KEY AUTO_INCREMENT | 点赞 ID |
-| user_id | INT NOT NULL | 用户 ID（FK） |
-| post_id | INT NOT NULL | 动态 ID（FK） |
-| UNIQUE(user_id, post_id) | 防止重复点赞 |
-
-> 完整建表语句请参考 `server/sql/init.sql`
+> 完整建表语句及种子数据请参考 `server/sql/init.sql`
 
 ---
 
@@ -408,6 +409,10 @@ JWT_EXPIRES_IN=7d
 | GET | /api/auth/profile | 是 | 获取个人资料 |
 | PUT | /api/auth/profile | 是 | 更新个人资料 |
 | PUT | /api/auth/password | 是 | 修改密码 |
+| POST | /api/auth/forgot-password | 否 | 发送密码重置验证码 |
+| POST | /api/auth/reset-password | 否 | 重置密码 |
+| GET | /api/auth/settings | 是 | 获取用户设置 |
+| PUT | /api/auth/settings | 是 | 更新用户设置 |
 
 ### 日程模块 `/api/schedules`
 
@@ -441,8 +446,8 @@ JWT_EXPIRES_IN=7d
 
 | 方法 | 路径 | 认证 | 说明 |
 |------|------|------|------|
-| GET | /api/social | 是 | 获取动态列表 |
-| POST | /api/social | 是 | 发布动态 |
+| GET | /api/social | 是 | 获取动态列表（支持分页） |
+| POST | /api/social | 是 | 发布动态（支持图片） |
 | DELETE | /api/social/:id | 是 | 删除动态 |
 | POST | /api/social/:id/like | 是 | 点赞/取消点赞 |
 | POST | /api/social/:id/comment | 是 | 添加评论 |
@@ -456,6 +461,49 @@ JWT_EXPIRES_IN=7d
 | GET | /api/ai/analysis | 是 | 获取效率分析 |
 | GET | /api/ai/schedule-suggest | 是 | 获取日程建议 |
 
+### 通知模块 `/api/notifications`
+
+| 方法 | 路径 | 认证 | 说明 |
+|------|------|------|------|
+| GET | /api/notifications | 是 | 获取通知列表 |
+| GET | /api/notifications/unread-count | 是 | 获取未读通知数 |
+| PUT | /api/notifications/:id/read | 是 | 标记通知已读 |
+| PUT | /api/notifications/read-all | 是 | 全部标记已读 |
+| DELETE | /api/notifications/:id | 是 | 删除通知 |
+
+### 成就模块 `/api/achievements`
+
+| 方法 | 路径 | 认证 | 说明 |
+|------|------|------|------|
+| GET | /api/achievements | 是 | 获取全部成就列表 |
+| GET | /api/achievements/user | 是 | 获取用户已获得成就 |
+
+### 上传模块 `/api/upload`
+
+| 方法 | 路径 | 认证 | 说明 |
+|------|------|------|------|
+| POST | /api/upload/single | 是 | 单文件上传 |
+| POST | /api/upload/multiple | 是 | 多文件上传（最多 9 个） |
+| DELETE | /api/upload/:filename | 是 | 删除文件 |
+
+### 报告模块 `/api/reports`
+
+| 方法 | 路径 | 认证 | 说明 |
+|------|------|------|------|
+| GET | /api/reports | 是 | 获取周报列表 |
+| GET | /api/reports/latest | 是 | 获取最新周报 |
+| GET | /api/reports/daily | 是 | 获取每日总结列表 |
+| POST | /api/reports/daily | 是 | 创建/更新每日总结 |
+
+### 目标模块 `/api/goals`
+
+| 方法 | 路径 | 认证 | 说明 |
+|------|------|------|------|
+| GET | /api/goals | 是 | 获取目标列表 |
+| POST | /api/goals | 是 | 创建目标 |
+| PUT | /api/goals/:id | 是 | 更新目标 |
+| DELETE | /api/goals/:id | 是 | 删除目标 |
+
 ### 系统
 
 | 方法 | 路径 | 认证 | 说明 |
@@ -468,7 +516,7 @@ JWT_EXPIRES_IN=7d
 
 完整的测试文档位于 [`docs/测试文档.md`](docs/测试文档.md)，包含：
 
-- **56 个测试用例**：覆盖全部 8 个功能模块
+- **56 个测试用例**：覆盖全部功能模块
 - **测试环境配置**：硬件、软件、工具详细说明
 - **测试步骤**：后端 API 测试、前端页面测试、集成测试
 - **测试工具说明**：Postman、Chrome DevTools、Vue DevTools 等
@@ -485,6 +533,9 @@ JWT_EXPIRES_IN=7d
 # 前端页面测试
 # 在浏览器中访问 http://localhost:5173
 # 使用 Chrome DevTools 调试
+
+# 前端构建验证
+cd client && npm run build
 ```
 
 ---
@@ -496,7 +547,6 @@ Intelligent Life Assistant/
 ├── README.md                    # 项目说明文档
 ├── LICENSE                      # MIT 开源许可证
 ├── .gitignore                   # Git 忽略配置
-├── package-lock.json
 ├── docs/
 │   ├── 需求分析.md               # 需求分析文档
 │   └── 测试文档.md               # 测试文档
@@ -511,35 +561,42 @@ Intelligent Life Assistant/
 │       ├── stores/              # Pinia 状态管理
 │       │   ├── auth.js          # 认证状态
 │       │   ├── habit.js         # 习惯状态
-│       │   └── schedule.js      # 日程状态
+│       │   ├── schedule.js      # 日程状态
+│       │   └── theme.js         # 主题状态
 │       ├── api/                 # API 请求层
 │       │   ├── request.js       # Axios 实例
-│       │   ├── auth.js
-│       │   ├── schedule.js
-│       │   ├── habit.js
-│       │   ├── checkin.js
-│       │   ├── social.js
-│       │   ├── ai.js
-│       │   └── user.js
+│       │   ├── auth.js          # 认证 API
+│       │   ├── schedule.js      # 日程 API
+│       │   ├── habit.js         # 习惯 API
+│       │   ├── checkin.js       # 打卡 API
+│       │   ├── social.js        # 社交 API
+│       │   ├── ai.js            # AI API
+│       │   ├── notification.js  # 通知 API
+│       │   ├── achievement.js   # 成就 API
+│       │   ├── upload.js        # 上传 API
+│       │   └── user.js          # 用户设置 API
 │       ├── views/               # 页面组件
-│       │   ├── Login.vue        # 登录
-│       │   ├── Register.vue     # 注册
-│       │   ├── Dashboard.vue    # 仪表盘
+│       │   ├── Login.vue        # 登录（动画背景 + 记住我）
+│       │   ├── Register.vue     # 注册（密码强度 + 条款确认）
+│       │   ├── ForgotPassword.vue # 忘记密码（分步 + 计时器）
+│       │   ├── Dashboard.vue    # 仪表盘（统计卡片 + 快捷操作）
 │       │   ├── Schedule.vue     # 日程管理
 │       │   ├── Habits.vue       # 习惯追踪
 │       │   ├── CheckIn.vue      # 每日打卡
-│       │   ├── Social.vue       # 社交社区
-│       │   ├── Profile.vue      # 个人中心
-│       │   └── Analytics.vue    # 数据分析
+│       │   ├── Analytics.vue    # 数据分析（ECharts）
+│       │   ├── Social.vue       # 社交社区（图片上传 + 灯箱）
+│       │   ├── Achievements.vue # 成就系统
+│       │   ├── Notifications.vue # 通知中心
+│       │   └── Profile.vue      # 个人中心（标签页 + 统计）
 │       ├── components/          # 公共组件
 │       │   ├── AppLayout.vue    # 布局组件
-│       │   ├── NavBar.vue       # 导航栏
+│       │   ├── NavBar.vue       # 导航栏（通知角标 + 用户菜单）
 │       │   ├── SideBar.vue      # 侧边栏
 │       │   ├── HabitChart.vue   # 习惯图表
 │       │   ├── CalendarHeatmap.vue # 热力图
 │       │   └── PostCard.vue     # 动态卡片
 │       └── styles/
-│           └── global.css       # 全局样式
+│           └── global.css       # 全局样式（主题变量 + 动画）
 └── server/                      # 后端项目
     ├── package.json
     ├── app.js                   # Express 入口
@@ -547,26 +604,37 @@ Intelligent Life Assistant/
     ├── config/
     │   ├── db.js                # MySQL 连接池
     │   ├── redis.js             # Redis 配置
-    │   └── jwt.js               # JWT 配置
+    │   ├── jwt.js               # JWT 配置
+    │   └── upload.js            # Multer 上传配置
     ├── middleware/
     │   ├── auth.js              # JWT 认证
     │   ├── validator.js         # 参数校验
     │   ├── errorHandler.js      # 异常处理
     │   └── logger.js            # 请求日志
     ├── routes/
-    │   ├── auth.js
-    │   ├── schedules.js
-    │   ├── habits.js
-    │   ├── checkins.js
-    │   ├── social.js
-    │   └── ai.js
+    │   ├── auth.js              # 认证路由
+    │   ├── schedules.js         # 日程路由
+    │   ├── habits.js            # 习惯路由
+    │   ├── checkins.js          # 打卡路由
+    │   ├── social.js            # 社交路由
+    │   ├── ai.js                # AI 路由
+    │   ├── notifications.js     # 通知路由
+    │   ├── achievements.js      # 成就路由
+    │   ├── upload.js            # 上传路由
+    │   ├── reports.js           # 周报/总结路由
+    │   └── goals.js             # 目标路由
     ├── controllers/
     │   ├── authController.js
     │   ├── scheduleController.js
     │   ├── habitController.js
     │   ├── checkinController.js
     │   ├── socialController.js
-    │   └── aiController.js
+    │   ├── aiController.js
+    │   ├── notificationController.js
+    │   ├── achievementController.js
+    │   ├── uploadController.js
+    │   ├── reportController.js
+    │   └── goalController.js
     ├── models/
     │   ├── User.js
     │   ├── Schedule.js
@@ -574,12 +642,17 @@ Intelligent Life Assistant/
     │   ├── CheckIn.js
     │   ├── SocialPost.js
     │   ├── SocialComment.js
-    │   └── SocialLike.js
+    │   ├── SocialLike.js
+    │   ├── Notification.js
+    │   ├── UserAchievement.js
+    │   ├── WeeklyReport.js
+    │   ├── DailySummary.js
+    │   └── Goal.js
     ├── utils/
     │   ├── response.js          # 统一响应格式
     │   └── helpers.js           # 工具函数
     └── sql/
-        └── init.sql             # 数据库初始化脚本
+        └── init.sql             # 数据库初始化脚本（含种子数据）
 ```
 
 ---

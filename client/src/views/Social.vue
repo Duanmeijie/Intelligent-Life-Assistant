@@ -1,416 +1,408 @@
 <template>
-  <div class="social-page">
+  <div class="page-container">
     <div class="page-header">
-      <h2>社区动态</h2>
-      <el-button type="primary" :icon="Edit" @click="showCreateDialog">
-        发布动态
-      </el-button>
+      <h1><span class="gradient-text">社区动态</span></h1>
+      <p>分享您的进步，互相鼓励，共同成长</p>
     </div>
 
-    <div v-if="loading" class="loading-container">
-      <el-skeleton :rows="5" animated />
-    </div>
+    <el-tabs v-model="activeTab" class="social-tabs" @tab-change="handleTabChange">
+      <el-tab-pane label="全部动态" name="all" />
+      <el-tab-pane label="我的动态" name="mine" />
+    </el-tabs>
 
-    <template v-else>
-      <div v-if="posts.length === 0" class="empty-state">
-        <el-empty description="还没有动态，快来发布第一条吧" />
+    <div class="new-post-card glass-card">
+      <div class="new-post-header">
+        <el-avatar :size="40" :src="authStore.user?.avatar">
+          {{ authStore.user?.username?.charAt(0)?.toUpperCase() || 'U' }}
+        </el-avatar>
+        <span class="new-post-label">分享新鲜事...</span>
       </div>
-
-      <div v-else class="post-list">
-        <el-card
-          v-for="post in posts"
-          :key="post.id"
-          shadow="never"
-          class="post-card"
-        >
-          <div class="post-header">
-            <div class="post-user">
-              <el-avatar :size="40" :src="post.avatar || undefined">
-                {{ post.nickname || post.username?.charAt(0)?.toUpperCase() }}
-              </el-avatar>
-              <div class="user-info">
-                <span class="user-name">{{ post.nickname || post.username }}</span>
-                <span class="post-time">{{ formatTime(post.created_at) }}</span>
-              </div>
-            </div>
-            <el-button
-              v-if="post.user_id === currentUserId"
-              text
-              type="danger"
-              size="small"
-              :icon="Delete"
-              @click="handleDeletePost(post.id)"
-              :loading="deleteLoading[post.id]"
-            />
-          </div>
-
-          <div class="post-content">{{ post.content }}</div>
-
-          <div v-if="post.images && post.images.length > 0" class="post-images" :class="imageGridClass(post.images.length)">
-            <img
-              v-for="(img, idx) in post.images"
-              :key="idx"
-              :src="img"
-              class="post-image"
-              @click="previewImage(img)"
-            />
-          </div>
-
-          <div class="post-actions">
-            <el-button
-              text
-              :type="likedPosts.has(post.id) ? 'danger' : 'default'"
-              :icon="likedPosts.has(post.id) ? 'HeartFilled' : 'Heart'"
-              @click="handleLike(post)"
-              :loading="likeLoading[post.id]"
-            >
-              {{ post.likes_count }}
-            </el-button>
-            <el-button
-              text
-              type="default"
-              icon="ChatLineSquare"
-              @click="toggleComments(post)"
-            >
-              {{ post.comments_count }}
-            </el-button>
-          </div>
-
-          <div v-if="expandedComments[post.id]" class="comment-section">
-            <div v-if="commentsLoading[post.id]" class="comments-loading">
-              <el-skeleton :rows="2" animated />
-            </div>
-            <template v-else>
-              <div v-if="postComments[post.id]?.length === 0" class="no-comments">
-                暂无评论
-              </div>
-              <div v-else class="comments-list">
-                <div
-                  v-for="comment in postComments[post.id]"
-                  :key="comment.id"
-                  class="comment-item"
-                >
-                  <span class="comment-user">{{ comment.nickname || comment.username }}</span>
-                  <span class="comment-content">{{ comment.content }}</span>
-                  <span class="comment-time">{{ formatTime(comment.created_at) }}</span>
-                </div>
-              </div>
-            </template>
-            <div class="comment-input-row">
-              <el-input
-                v-model="commentInputs[post.id]"
-                placeholder="输入评论..."
-                size="small"
-                @keyup.enter="handleAddComment(post.id)"
-                :disabled="commentSubmitting[post.id]"
-              />
-              <el-button
-                type="primary"
-                size="small"
-                @click="handleAddComment(post.id)"
-                :loading="commentSubmitting[post.id]"
-                :disabled="!commentInputs[post.id]?.trim()"
-              >
-                发送
-              </el-button>
-            </div>
-          </div>
-        </el-card>
-      </div>
-
-      <div v-if="total > 0" class="pagination-wrapper">
-        <el-pagination
-          v-model:current-page="currentPage"
-          :page-size="pageSize"
-          :total="total"
-          layout="prev, pager, next"
-          @current-change="handlePageChange"
-        />
-      </div>
-    </template>
-
-    <el-dialog
-      v-model="createDialogVisible"
-      title="发布动态"
-      width="500px"
-      :close-on-click-modal="false"
-    >
       <el-input
         v-model="newPostContent"
         type="textarea"
-        :rows="5"
-        placeholder="分享你的生活点滴..."
-        maxlength="2000"
+        :rows="3"
+        placeholder="今天有什么想分享的？"
+        maxlength="500"
         show-word-limit
+        class="new-post-textarea"
       />
-      <div class="image-url-section">
-        <div
-          v-for="(url, idx) in newPostImages"
-          :key="idx"
-          class="image-url-row"
-        >
-          <el-input
-            v-model="newPostImages[idx]"
-            :placeholder="`图片链接 ${idx + 1}`"
-            size="small"
-          />
+      <div v-if="previewImages.length > 0" class="preview-images">
+        <div v-for="(img, idx) in previewImages" :key="idx" class="preview-image-item">
+          <img :src="img" alt="preview" />
+          <button class="preview-remove" @click="removePreviewImage(idx)">
+            <el-icon :size="12"><Delete /></el-icon>
+          </button>
+        </div>
+      </div>
+      <div class="new-post-actions">
+        <div class="new-post-actions-left">
+          <label class="upload-trigger" :class="{ disabled: uploading }">
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              hidden
+              :disabled="uploading"
+              @change="handleFileSelect"
+            />
+            <el-icon :size="20"><PictureFilled /></el-icon>
+            <span>图片</span>
+          </label>
+        </div>
+        <div class="new-post-actions-right">
+          <span class="char-count">{{ newPostContent.length }}/500</span>
           <el-button
-            text
-            type="danger"
-            :icon="Delete"
-            size="small"
-            @click="removeImageUrl(idx)"
+            type="primary"
+            class="btn-gradient"
+            :loading="creating"
+            :disabled="!newPostContent.trim() || uploading"
+            @click="handleCreatePost"
+          >
+            <el-icon :size="16" v-if="!creating"><Plus /></el-icon>
+            发布
+          </el-button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="loading" class="loading-state">
+      <el-skeleton animated :rows="3" />
+      <el-skeleton animated :rows="3" style="margin-top:16px" />
+      <el-skeleton animated :rows="3" style="margin-top:16px" />
+    </div>
+
+    <el-empty
+      v-else-if="posts.length === 0"
+      description="还没有动态，成为第一个分享的人吧"
+      :image-size="120"
+    />
+
+    <div v-else class="post-list">
+      <div v-for="post in posts" :key="post.id" class="post-card glass-card">
+        <div class="post-header">
+          <div class="post-user">
+            <el-avatar :size="44" :src="post.user?.avatar">
+              {{ post.user?.username?.charAt(0)?.toUpperCase() || 'U' }}
+            </el-avatar>
+            <div class="post-user-info">
+              <span class="post-username">{{ post.user?.username || '匿名用户' }}</span>
+              <span class="post-time">{{ formatTime(post.createdAt) }}</span>
+            </div>
+          </div>
+          <button
+            v-if="post.user?.id === authStore.userId"
+            class="post-delete-btn"
+            @click="handleDeletePost(post.id)"
+          >
+            <el-icon :size="14"><Delete /></el-icon>
+          </button>
+        </div>
+
+        <div class="post-content">
+          <p>{{ post.content }}</p>
+        </div>
+
+        <div v-if="post.images && post.images.length" class="post-images" :class="gridClass(post.images.length)">
+          <el-image
+            v-for="(img, idx) in post.images"
+            :key="idx"
+            :src="img"
+            fit="cover"
+            :preview-src-list="post.images"
+            :initial-index="idx"
+            class="post-image-item"
           />
         </div>
-        <el-button
-          v-if="newPostImages.length < 6"
-          text
-          type="primary"
-          :icon="Plus"
-          size="small"
-          @click="addImageUrl"
-        >
-          添加图片链接
-        </el-button>
-      </div>
-      <template #footer>
-        <el-button @click="createDialogVisible = false">取消</el-button>
-        <el-button
-          type="primary"
-          @click="handleCreatePost"
-          :loading="createLoading"
-          :disabled="!newPostContent.trim()"
-        >
-          发布
-        </el-button>
-      </template>
-    </el-dialog>
 
-    <el-image-viewer
-      v-if="previewVisible"
-      :url-list="[previewUrl]"
-      @close="previewVisible = false"
-    />
+        <div class="post-stats">
+          <div class="post-stats-left">
+            <button class="stat-btn" :class="{ active: post.isLiked }" @click="handleLike(post)">
+              <el-icon :size="18"><StarFilled /></el-icon>
+              <span>{{ post.likesCount || 0 }}</span>
+            </button>
+            <button class="stat-btn" @click="toggleComments(post)">
+              <el-icon :size="18"><ChatDotSquare /></el-icon>
+              <span>{{ post.commentsCount || 0 }}</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="post-actions-bar">
+          <button class="action-btn" :class="{ liked: post.isLiked }" @click="handleLike(post)">
+            <el-icon :size="18"><StarFilled /></el-icon>
+            <span>{{ post.isLiked ? '已赞' : '点赞' }}</span>
+          </button>
+          <el-divider direction="vertical" />
+          <button class="action-btn" @click="toggleComments(post)">
+            <el-icon :size="18"><ChatDotSquare /></el-icon>
+            <span>评论</span>
+          </button>
+          <el-divider direction="vertical" />
+          <button class="action-btn">
+            <el-icon :size="18"><Share /></el-icon>
+            <span>分享</span>
+          </button>
+        </div>
+
+        <div v-if="post.showComments" class="comments-section">
+          <div v-if="post.commentsLoading" class="comments-loading">
+            <el-icon class="is-loading" :size="20"><Loading /></el-icon>
+            <span>加载评论中...</span>
+          </div>
+          <template v-else>
+            <div v-if="post.comments && post.comments.length" class="comments-list">
+              <div v-for="comment in post.comments" :key="comment.id" class="comment-item">
+                <el-avatar :size="32" :src="comment.user?.avatar">
+                  {{ comment.user?.username?.charAt(0)?.toUpperCase() || 'U' }}
+                </el-avatar>
+                <div class="comment-body">
+                  <div class="comment-header">
+                    <span class="comment-username">{{ comment.user?.username || '匿名' }}</span>
+                    <span class="comment-time">{{ formatTime(comment.createdAt) }}</span>
+                  </div>
+                  <span class="comment-text">{{ comment.content }}</span>
+                </div>
+              </div>
+            </div>
+            <div v-else class="comments-empty">暂无评论，快来抢沙发吧~</div>
+            <div class="comment-input-row">
+              <el-avatar :size="28" :src="authStore.user?.avatar" style="flex-shrink:0">
+                {{ authStore.user?.username?.charAt(0)?.toUpperCase() || 'U' }}
+              </el-avatar>
+              <el-input
+                v-model="post.commentText"
+                placeholder="写下你的评论..."
+                size="small"
+                class="comment-input"
+                @keyup.enter="handleComment(post)"
+              >
+                <template #suffix>
+                  <el-button
+                    link
+                    type="primary"
+                    :loading="post.commenting"
+                    :disabled="!post.commentText?.trim()"
+                    @click="handleComment(post)"
+                  >
+                    发送
+                  </el-button>
+                </template>
+              </el-input>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <div class="pagination-wrap" v-if="total > pageSize">
+      <el-pagination
+        v-model:current-page="page"
+        :page-size="pageSize"
+        :total="total"
+        layout="total, prev, pager, next"
+        @current-change="fetchPosts"
+      />
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
+import {
+  Plus, Delete, ChatDotSquare, StarFilled, PictureFilled,
+  Share, Refresh, Loading
+} from '@element-plus/icons-vue'
+import { useAuthStore } from '@/stores/auth'
+import {
+  getPosts, createPost, deletePost as delPost,
+  likePost, commentPost, getComments
+} from '@/api/social'
+import { uploadMultiple } from '@/api/upload'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Edit, Delete, Plus } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import 'dayjs/locale/zh-cn'
-import { getPosts, createPost, deletePost, likePost, getComments, commentPost } from '@/api/social'
-import { useAuthStore } from '@/stores/auth'
 
 dayjs.extend(relativeTime)
 dayjs.locale('zh-cn')
 
 const authStore = useAuthStore()
-const currentUserId = computed(() => authStore.userId)
 
 const posts = ref([])
-const total = ref(0)
-const currentPage = ref(1)
-const pageSize = ref(10)
 const loading = ref(false)
-const deleteLoading = reactive({})
-const likeLoading = reactive({})
-const commentsLoading = reactive({})
-const commentSubmitting = reactive({})
+const page = ref(1)
+const pageSize = ref(10)
+const total = ref(0)
+const activeTab = ref('all')
 
-const likedPosts = ref(new Set())
-const expandedComments = ref({})
-const postComments = ref({})
-const commentInputs = ref({})
-
-const createDialogVisible = ref(false)
 const newPostContent = ref('')
-const newPostImages = ref([])
-const createLoading = ref(false)
+const previewImages = ref([])
+const uploadedUrls = ref([])
+const uploading = ref(false)
+const creating = ref(false)
 
-const previewVisible = ref(false)
-const previewUrl = ref('')
-
-function formatTime(time) {
-  return dayjs(time).fromNow()
+function formatTime(date) {
+  if (!date) return ''
+  return dayjs(date).fromNow()
 }
 
-function imageGridClass(count) {
+function gridClass(count) {
   if (count === 1) return 'grid-1'
-  if (count === 2) return 'grid-2'
-  if (count === 3) return 'grid-3'
-  if (count === 4) return 'grid-4'
-  return 'grid-many'
-}
-
-function previewImage(url) {
-  previewUrl.value = url
-  previewVisible.value = true
+  if (count === 2 || count === 4) return 'grid-2'
+  return 'grid-3'
 }
 
 async function fetchPosts() {
   loading.value = true
   try {
-    const res = await getPosts({ page: currentPage.value, pageSize: pageSize.value })
-    if (res.data && res.data.list) {
-      posts.value = res.data.list.map(p => ({
-        ...p,
-        images: Array.isArray(p.images) ? p.images : []
-      }))
-      total.value = res.data.total || 0
-    } else if (Array.isArray(res.data)) {
-      posts.value = res.data.map(p => ({
-        ...p,
-        images: Array.isArray(p.images) ? p.images : []
-      }))
-      total.value = posts.value.length
-    } else {
-      posts.value = []
-      total.value = 0
+    const params = { page: page.value, pageSize: pageSize.value }
+    if (activeTab.value === 'mine') {
+      params.userId = authStore.userId
     }
-  } catch (error) {
-    console.error('获取动态列表失败:', error)
+    const res = await getPosts(params)
+    const list = res.rows || res.data?.rows || res.data || res || []
+    posts.value = (Array.isArray(list) ? list : []).map(p => ({
+      ...p,
+      showComments: false,
+      comments: null,
+      commentsLoading: false,
+      commentText: '',
+      commenting: false
+    }))
+    total.value = res.total || res.data?.total || posts.value.length
+  } catch (err) {
+    console.error('获取动态失败:', err)
     posts.value = []
-    total.value = 0
   } finally {
     loading.value = false
   }
 }
 
-function handlePageChange(page) {
-  currentPage.value = page
+function handleTabChange() {
+  page.value = 1
   fetchPosts()
-  expandedComments.value = {}
-  postComments.value = {}
 }
 
-function toggleComments(post) {
-  if (expandedComments.value[post.id]) {
-    expandedComments.value[post.id] = false
-    return
-  }
-  expandedComments.value[post.id] = true
-  if (!postComments.value[post.id]) {
-    fetchComments(post.id)
-  }
+function handleFileSelect(e) {
+  const files = Array.from(e.target.files || [])
+  if (!files.length) return
+  files.forEach(file => {
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      previewImages.value.push(ev.target.result)
+    }
+    reader.readAsDataURL(file)
+  })
+  uploadImages(files)
+  e.target.value = ''
 }
 
-async function fetchComments(postId) {
-  commentsLoading.value[postId] = true
+async function uploadImages(files) {
+  uploading.value = true
   try {
-    const res = await getComments(postId)
-    if (Array.isArray(res.data)) {
-      postComments.value[postId] = res.data
-    } else if (Array.isArray(res)) {
-      postComments.value[postId] = res
-    } else {
-      postComments.value[postId] = []
+    const res = await uploadMultiple(files)
+    const urls = res.data?.urls || res.data || res.urls || res || []
+    if (Array.isArray(urls)) {
+      uploadedUrls.value.push(...urls)
+    } else if (typeof urls === 'string') {
+      uploadedUrls.value.push(urls)
     }
-  } catch (error) {
-    console.error('获取评论失败:', error)
-    postComments.value[postId] = []
+  } catch (err) {
+    console.error('图片上传失败:', err)
+    ElMessage.error('图片上传失败')
   } finally {
-    commentsLoading.value[postId] = false
+    uploading.value = false
   }
 }
 
-async function handleLike(post) {
-  likeLoading.value[post.id] = true
-  try {
-    const res = await likePost(post.id)
-    const isLiked = res.data?.isLiked
-    if (isLiked) {
-      likedPosts.value.add(post.id)
-      post.likes_count = (post.likes_count || 0) + 1
-    } else {
-      likedPosts.value.delete(post.id)
-      post.likes_count = Math.max(0, (post.likes_count || 0) - 1)
-    }
-  } catch (error) {
-    console.error('点赞操作失败:', error)
-  } finally {
-    likeLoading.value[post.id] = false
-  }
-}
-
-async function handleAddComment(postId) {
-  const content = commentInputs.value[postId]?.trim()
-  if (!content) return
-  commentSubmitting.value[postId] = true
-  try {
-    const res = await commentPost(postId, { content })
-    if (!postComments.value[postId]) {
-      postComments.value[postId] = []
-    }
-    if (res.data) {
-      postComments.value[postId].push(res.data)
-    }
-    const post = posts.value.find(p => p.id === postId)
-    if (post) {
-      post.comments_count = (post.comments_count || 0) + 1
-    }
-    commentInputs.value[postId] = ''
-  } catch (error) {
-    console.error('评论失败:', error)
-  } finally {
-    commentSubmitting.value[postId] = false
-  }
-}
-
-function showCreateDialog() {
-  newPostContent.value = ''
-  newPostImages.value = []
-  createDialogVisible.value = true
-}
-
-function addImageUrl() {
-  newPostImages.value.push('')
-}
-
-function removeImageUrl(idx) {
-  newPostImages.value.splice(idx, 1)
+function removePreviewImage(idx) {
+  previewImages.value.splice(idx, 1)
+  uploadedUrls.value.splice(idx, 1)
 }
 
 async function handleCreatePost() {
   if (!newPostContent.value.trim()) return
-  createLoading.value = true
+  creating.value = true
   try {
-    const images = newPostImages.value.filter(url => url.trim())
-    const res = await createPost({
-      content: newPostContent.value,
-      images
+    await createPost({
+      content: newPostContent.value.trim(),
+      images: [...uploadedUrls.value]
     })
-    ElMessage.success('动态发布成功')
-    createDialogVisible.value = false
-    currentPage.value = 1
+    ElMessage.success('发布成功')
+    newPostContent.value = ''
+    previewImages.value = []
+    uploadedUrls.value = []
+    page.value = 1
     await fetchPosts()
-  } catch (error) {
-    console.error('发布动态失败:', error)
+  } catch (err) {
+    console.error('发布失败:', err)
+    ElMessage.error('发布失败，请重试')
   } finally {
-    createLoading.value = false
+    creating.value = false
   }
 }
 
-async function handleDeletePost(postId) {
+async function handleDeletePost(id) {
   try {
-    await ElMessageBox.confirm('确定要删除这条动态吗？', '确认删除', {
-      type: 'warning',
+    await ElMessageBox.confirm('确定要删除这条动态吗？', '提示', {
       confirmButtonText: '删除',
-      cancelButtonText: '取消'
+      cancelButtonText: '取消',
+      type: 'warning'
     })
-    deleteLoading[postId] = true
-    await deletePost(postId)
-    posts.value = posts.value.filter(p => p.id !== postId)
-    total.value = Math.max(0, total.value - 1)
-    ElMessage.success('动态已删除')
-  } catch (error) {
-    if (error !== 'cancel') {
-      console.error('删除动态失败:', error)
+    await delPost(id)
+    ElMessage.success('删除成功')
+    await fetchPosts()
+  } catch (err) {
+    if (err !== 'cancel') {
+      console.error('删除失败:', err)
     }
+  }
+}
+
+async function handleLike(post) {
+  try {
+    await likePost(post.id)
+    post.isLiked = !post.isLiked
+    post.likesCount = (post.likesCount || 0) + (post.isLiked ? 1 : -1)
+  } catch (err) {
+    console.error('点赞失败:', err)
+  }
+}
+
+async function toggleComments(post) {
+  post.showComments = !post.showComments
+  if (post.showComments && !post.comments) {
+    post.commentsLoading = true
+    try {
+      const res = await getComments(post.id)
+      const list = res.data?.rows || res.data || res || []
+      post.comments = Array.isArray(list) ? list : []
+    } catch (err) {
+      console.error('获取评论失败:', err)
+      post.comments = []
+    } finally {
+      post.commentsLoading = false
+    }
+  }
+}
+
+async function handleComment(post) {
+  const text = post.commentText?.trim()
+  if (!text) return
+  post.commenting = true
+  try {
+    await commentPost(post.id, { content: text })
+    ElMessage.success('评论成功')
+    post.commentText = ''
+    const res = await getComments(post.id)
+    const list = res.data?.rows || res.data || res || []
+    post.comments = Array.isArray(list) ? list : []
+    post.commentsCount = (post.commentsCount || 0) + 1
+  } catch (err) {
+    console.error('评论失败:', err)
+    ElMessage.error('评论失败')
   } finally {
-    deleteLoading[postId] = false
+    post.commenting = false
   }
 }
 
@@ -420,31 +412,163 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.social-page {
-  max-width: 700px;
-  margin: 0 auto;
-  padding: 20px;
-}
-
-.page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.social-tabs {
   margin-bottom: 20px;
 }
 
-.page-header h2 {
-  font-size: 22px;
+.social-tabs :deep(.el-tabs__header) {
+  margin-bottom: 0;
+}
+
+.social-tabs :deep(.el-tabs__nav-wrap::after) {
+  height: 1px;
+}
+
+.social-tabs :deep(.el-tabs__item) {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  padding: 0 20px;
+  height: 44px;
+  line-height: 44px;
+}
+
+.social-tabs :deep(.el-tabs__item.is-active) {
+  color: var(--primary);
   font-weight: 600;
-  color: var(--el-text-color-primary);
 }
 
-.loading-container {
-  padding: 20px;
+.new-post-card {
+  padding: 20px 24px;
+  margin-bottom: 20px;
 }
 
-.empty-state {
-  padding: 60px 0;
+.new-post-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.new-post-label {
+  font-size: 15px;
+  color: var(--text-tertiary);
+}
+
+.new-post-textarea {
+  margin-bottom: 12px;
+}
+
+.new-post-textarea :deep(.el-textarea__inner) {
+  background: var(--bg-secondary);
+  border-color: var(--border-color);
+  border-radius: var(--radius);
+  resize: none;
+  font-size: 14px;
+  color: var(--text-primary);
+  transition: var(--transition-fast);
+}
+
+.new-post-textarea :deep(.el-textarea__inner):focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.1);
+}
+
+.preview-images {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.preview-image-item {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.preview-image-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+}
+
+.preview-remove {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--danger);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  transition: var(--transition-fast);
+  opacity: 0;
+}
+
+.preview-image-item:hover .preview-remove {
+  opacity: 1;
+}
+
+.new-post-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+
+.new-post-actions-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.upload-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 13px;
+  transition: var(--transition-fast);
+  user-select: none;
+}
+
+.upload-trigger:hover {
+  background: rgba(var(--primary-rgb), 0.08);
+  color: var(--primary);
+}
+
+.upload-trigger.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.new-post-actions-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.char-count {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.loading-state {
+  padding: 16px 0;
 }
 
 .post-list {
@@ -454,14 +578,19 @@ onMounted(() => {
 }
 
 .post-card {
-  border-radius: 12px;
+  padding: 20px 24px;
+  transition: var(--transition);
+}
+
+.post-card:hover {
+  transform: translateY(-1px);
 }
 
 .post-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  align-items: center;
+  margin-bottom: 14px;
 }
 
 .post-user {
@@ -470,35 +599,55 @@ onMounted(() => {
   gap: 12px;
 }
 
-.user-info {
+.post-user-info {
   display: flex;
   flex-direction: column;
 }
 
-.user-name {
+.post-username {
+  font-weight: 600;
+  color: var(--text-primary);
   font-size: 15px;
-  font-weight: 500;
-  color: var(--el-text-color-primary);
 }
 
 .post-time {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--text-tertiary);
+  margin-top: 2px;
 }
 
-.post-content {
-  font-size: 14px;
+.post-delete-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition-fast);
+}
+
+.post-delete-btn:hover {
+  background: rgba(var(--danger-rgb), 0.1);
+  color: var(--danger);
+}
+
+.post-content p {
+  margin: 0 0 14px;
   line-height: 1.7;
-  color: var(--el-text-color-regular);
-  margin-bottom: 12px;
+  color: var(--text-primary);
+  font-size: 14px;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 .post-images {
   display: grid;
-  gap: 6px;
-  margin-bottom: 12px;
+  gap: 8px;
+  margin-bottom: 14px;
 }
 
 .post-images.grid-1 {
@@ -506,119 +655,224 @@ onMounted(() => {
   max-width: 400px;
 }
 
+.post-images.grid-1 .post-image-item {
+  aspect-ratio: 16/9;
+}
+
 .post-images.grid-2 {
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, 1fr);
 }
 
 .post-images.grid-3 {
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
 }
 
-.post-images.grid-4 {
-  grid-template-columns: 1fr 1fr;
-}
-
-.post-images.grid-many {
-  grid-template-columns: 1fr 1fr 1fr;
-}
-
-.post-image {
+.post-image-item {
   width: 100%;
   aspect-ratio: 1;
-  object-fit: cover;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
   cursor: pointer;
-  transition: opacity 0.2s;
 }
 
-.post-image:hover {
-  opacity: 0.85;
+.post-image-item :deep(img) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
 }
 
-.post-actions {
+.post-image-item:hover :deep(img) {
+  transform: scale(1.05);
+}
+
+.post-stats {
   display: flex;
-  gap: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--el-border-color-lighter);
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 4px;
 }
 
-.comment-section {
+.post-stats-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.stat-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: var(--transition-fast);
+}
+
+.stat-btn.active {
+  color: var(--danger);
+}
+
+.post-actions-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 8px 20px;
+  border-radius: var(--radius-sm);
+  transition: var(--transition-fast);
+  flex: 1;
+  justify-content: center;
+}
+
+.action-btn:hover {
+  background: rgba(var(--primary-rgb), 0.06);
+  color: var(--primary);
+}
+
+.action-btn.liked {
+  color: var(--danger);
+}
+
+.post-actions-bar :deep(.el-divider--vertical) {
+  height: 20px;
+  margin: 0;
+}
+
+.comments-section {
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid var(--el-border-color-lighter);
+  border-top: 1px solid var(--border-color);
 }
 
 .comments-loading {
-  padding: 8px 0;
-}
-
-.no-comments {
-  text-align: center;
-  color: var(--el-text-color-placeholder);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 0;
+  color: var(--text-tertiary);
   font-size: 13px;
-  padding: 12px 0;
+  justify-content: center;
 }
 
 .comments-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-bottom: 12px;
-  max-height: 240px;
-  overflow-y: auto;
+  gap: 12px;
+  margin-bottom: 14px;
 }
 
 .comment-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.comment-body {
+  flex: 1;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+}
+
+.comment-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.comment-username {
+  font-weight: 600;
   font-size: 13px;
-  line-height: 1.6;
-}
-
-.comment-user {
-  font-weight: 500;
-  color: var(--el-color-primary);
-  margin-right: 6px;
-}
-
-.comment-content {
-  color: var(--el-text-color-regular);
-  word-break: break-word;
+  color: var(--primary);
 }
 
 .comment-time {
   font-size: 11px;
-  color: var(--el-text-color-placeholder);
-  margin-left: 8px;
+  color: var(--text-tertiary);
+}
+
+.comment-text {
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.comments-empty {
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 13px;
+  padding: 12px 0;
+  margin-bottom: 8px;
 }
 
 .comment-input-row {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 10px;
 }
 
-.pagination-wrapper {
+.comment-input :deep(.el-input__wrapper) {
+  background: var(--bg-secondary);
+  border-radius: 20px;
+  box-shadow: none;
+  padding: 2px 12px;
+}
+
+.comment-input :deep(.el-input__wrapper):hover {
+  box-shadow: 0 0 0 1px var(--border-color) inset;
+}
+
+.comment-input :deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px var(--primary) inset;
+}
+
+.pagination-wrap {
   display: flex;
   justify-content: center;
-  margin-top: 24px;
-  padding: 16px 0;
+  padding-top: 28px;
 }
 
-.image-url-section {
-  margin-top: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
+@media (max-width: 768px) {
+  .new-post-card {
+    padding: 16px;
+  }
 
-.image-url-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+  .post-card {
+    padding: 16px;
+  }
 
-@media (max-width: 600px) {
-  .post-images.grid-3,
-  .post-images.grid-many {
-    grid-template-columns: 1fr 1fr;
+  .post-images.grid-3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .action-btn {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .post-images.grid-1 {
+    max-width: 100%;
   }
 }
 </style>

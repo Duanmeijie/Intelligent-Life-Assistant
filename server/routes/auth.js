@@ -52,5 +52,13 @@ router.post('/login', loginValidation, validate, authController.login);
 router.get('/profile', auth, authController.getProfile);
 router.put('/profile', auth, updateProfileValidation, validate, authController.updateProfile);
 router.put('/password', auth, changePasswordValidation, validate, authController.changePassword);
+router.post('/forgot-password', [body('email').notEmpty().withMessage('邮箱不能为空').isEmail().withMessage('邮箱格式不正确')], validate, authController.forgotPassword);
+router.post('/reset-password', [
+  body('token').notEmpty().withMessage('令牌不能为空'),
+  body('newPassword').notEmpty().withMessage('新密码不能为空').isLength({ min: 8, max: 20 }).withMessage('新密码长度需在8-20个字符之间').matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/).withMessage('新密码需包含大小写字母和数字')
+], validate, authController.resetPassword);
+
+router.get('/settings', auth, authController.getSettings);
+router.put('/settings', auth, authController.updateSettings);
 
 module.exports = router;

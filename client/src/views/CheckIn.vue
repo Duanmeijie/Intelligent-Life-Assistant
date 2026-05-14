@@ -1,143 +1,151 @@
 <template>
-  <div class="checkin-page">
+  <div class="page-container">
     <div class="page-header">
-      <h2>每日打卡</h2>
-      <div class="header-actions">
-        <el-date-picker
-          v-model="currentMonth"
-          type="month"
-          placeholder="选择月份"
-          :clearable="false"
-          @change="handleMonthChange"
-        />
+      <h1><span class="gradient-text">每日打卡</span></h1>
+      <p>坚持每天打卡，养成良好习惯</p>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-card primary">
+        <div class="stat-icon">✅</div>
+        <div class="stat-info">
+          <span class="stat-value">{{ todayCheckinCount }}/{{ todayHabitCount }}</span>
+          <span class="stat-label">今日打卡</span>
+        </div>
+      </div>
+      <div class="stat-card success">
+        <div class="stat-icon">📋</div>
+        <div class="stat-info">
+          <span class="stat-value">{{ habits.length }}</span>
+          <span class="stat-label">总习惯数</span>
+        </div>
+      </div>
+      <div class="stat-card warning">
+        <div class="stat-icon">🔥</div>
+        <div class="stat-info">
+          <span class="stat-value">{{ overallStreak }}</span>
+          <span class="stat-label">最长连续打卡</span>
+        </div>
+      </div>
+      <div class="stat-card info">
+        <div class="stat-icon">📅</div>
+        <div class="stat-info">
+          <span class="stat-value">{{ checkinRate }}%</span>
+          <span class="stat-label">今日完成率</span>
+        </div>
       </div>
     </div>
 
-    <el-card class="calendar-card" shadow="never">
-      <el-calendar v-model="calendarDate">
-        <template #date-cell="{ data }">
-          <div class="calendar-cell" :class="{ 'is-today': data.isToday }">
-            <span class="calendar-day">{{ data.day.split('-')[2]?.replace(/^0/, '') }}</span>
-            <div v-if="checkinDates.includes(data.day)" class="checkin-dot" />
-          </div>
-        </template>
-      </el-calendar>
-    </el-card>
-
-    <div class="stats-bar">
-      <el-card shadow="never" class="stat-card">
-        <div class="stat-value">{{ todayCheckedCount }}</div>
-        <div class="stat-label">今日已打卡</div>
-      </el-card>
-      <el-card shadow="never" class="stat-card">
-        <div class="stat-value">{{ habits.length }}</div>
-        <div class="stat-label">习惯总数</div>
-      </el-card>
-      <el-card shadow="never" class="stat-card">
-        <div class="stat-value">{{ currentStreakStats }}</div>
-        <div class="stat-label">连续打卡</div>
-      </el-card>
-    </div>
-
-    <div class="section-header">
-      <h3>今日打卡</h3>
-      <el-switch
-        v-model="showUncheckedOnly"
-        active-text="仅显示未打卡"
-        inactive-text="显示全部"
-      />
-    </div>
-
-    <div v-if="loading" class="loading-container">
-      <el-skeleton :rows="3" animated />
-    </div>
-
-    <template v-else>
-      <div v-if="filteredHabits.length === 0" class="empty-state">
-        <el-empty description="暂无习惯，请先在习惯追踪中添加习惯" />
+    <div class="two-col-layout">
+      <div class="glass-card calendar-card">
+        <div class="card-header">
+          <h3>打卡日历</h3>
+          <el-date-picker
+            v-model="currentMonth"
+            type="month"
+            placeholder="选择月份"
+            format="YYYY年MM月"
+            value-format="YYYY-MM"
+            size="default"
+            @change="fetchMonthlyCheckins"
+          />
+        </div>
+        <el-calendar v-model="calendarDate">
+          <template #date-cell="{ data }">
+            <div class="calendar-day" :class="{ checked: isCheckedDate(data.day) }">
+              <span>{{ data.day.split('-')[2] }}</span>
+              <span v-if="isCheckedDate(data.day)" class="dot"></span>
+            </div>
+          </template>
+        </el-calendar>
       </div>
 
-      <div v-else class="habit-list">
-        <el-card
-          v-for="habit in filteredHabits"
-          :key="habit.id"
-          shadow="never"
-          class="habit-card"
-        >
-          <div class="habit-info">
-            <div class="habit-indicator" :style="{ backgroundColor: habit.color || '#409EFF' }" />
-            <div class="habit-details">
-              <div class="habit-name">{{ habit.name }}</div>
-              <div class="habit-meta">
-                <el-tag size="small" :color="categoryColor(habit.category)" class="category-tag">
-                  {{ categoryLabel(habit.category) }}
-                </el-tag>
-                <span class="frequency-text">{{ frequencyLabel(habit.frequency) }}</span>
-                <span class="streak-text">
-                  <el-icon><Chicken /></el-icon>
-                  {{ getStreak(habit.id) }}天连续
+      <div class="glass-card checkin-card">
+        <div class="card-header">
+          <h3>今日习惯</h3>
+          <el-switch
+            v-model="showUncheckedOnly"
+            active-text="未打卡"
+            inactive-text="全部"
+            size="small"
+          />
+        </div>
+
+        <div v-if="loading" class="empty-state">
+          <el-icon class="is-loading" :size="32"><Loading /></el-icon>
+          <p>加载中...</p>
+        </div>
+
+        <div v-else-if="filteredHabits.length === 0" class="empty-state">
+          <span style="font-size:48px">🎉</span>
+          <p>{{ showUncheckedOnly ? '全部打卡完成，太棒了！' : '今天没有需要打卡的习惯' }}</p>
+        </div>
+
+        <div v-else class="habit-checkin-list">
+          <div
+            v-for="habit in filteredHabits"
+            :key="habit.id"
+            class="checkin-item"
+            :class="{ done: isCheckedInToday(habit.id) }"
+          >
+            <div class="checkin-left">
+              <div class="habit-icon" :style="{ background: habit.color || '#6366f1' }">
+                {{ getCategoryEmoji(habit.category) }}
+              </div>
+              <div class="checkin-info">
+                <span class="habit-name">{{ habit.name }}</span>
+                <span class="habit-streak" v-if="streaks[habit.id]">
+                  🔥 连续 {{ streaks[habit.id] }} 天
                 </span>
               </div>
             </div>
-          </div>
-          <div class="habit-action">
-            <template v-if="isCheckedInToday(habit.id)">
+            <div class="checkin-right">
               <el-button
-                type="success"
-                :icon="Check"
+                v-if="!isCheckedInToday(habit.id)"
+                type="primary"
+                size="default"
                 round
-                disabled
-                class="checked-btn"
+                @click="openCheckinDialog(habit)"
               >
-                已打卡
+                打卡
               </el-button>
               <el-button
-                text
+                v-else
                 type="danger"
-                size="small"
-                @click="handleUndoCheckin(habit.id)"
-                :loading="undoLoading[habit.id]"
+                size="default"
+                round
+                plain
+                @click="undoCheckin(habit.id)"
               >
                 撤销
               </el-button>
-            </template>
-            <el-button
-              v-else
-              type="primary"
-              round
-              :icon="Select"
-              @click="handleCheckin(habit)"
-              :loading="checkinLoading[habit.id]"
-            >
-              打卡
-            </el-button>
+            </div>
           </div>
-        </el-card>
+        </div>
       </div>
-    </template>
+    </div>
 
     <el-dialog
-      v-model="dialogVisible"
-      title="打卡备注"
-      width="400px"
-      :close-on-click-modal="false"
+      v-model="noteDialogVisible"
+      title="添加打卡备注"
+      width="420px"
+      destroy-on-close
+      class="modern-dialog"
     >
-      <div class="dialog-habit-info">
-        <span class="dialog-label">习惯：</span>
-        <strong>{{ currentHabit?.name }}</strong>
-      </div>
-      <el-input
-        v-model="checkinNote"
-        type="textarea"
-        :rows="3"
-        placeholder="添加打卡备注（选填）"
-        maxlength="255"
-        show-word-limit
-      />
+      <el-form label-position="top">
+        <el-form-item label="今日感想">
+          <el-input
+            v-model="checkinNote"
+            type="textarea"
+            :rows="3"
+            placeholder="记录今天的感受和想法..."
+          />
+        </el-form-item>
+      </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="confirmCheckin" :loading="confirmLoading">
-          确认打卡
+        <el-button @click="noteDialogVisible = false" size="large">取消</el-button>
+        <el-button type="primary" @click="confirmCheckin" :loading="checkingIn" size="large">
+          确认打卡 ✅
         </el-button>
       </template>
     </el-dialog>
@@ -145,437 +153,292 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, watch } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Check, Select, Chicken } from '@element-plus/icons-vue'
-import dayjs from 'dayjs'
-import { getHabits } from '@/api/habit'
-import { createCheckin, getCheckins, deleteCheckin, getCheckinStats } from '@/api/checkin'
+import { ref, computed, onMounted, watch } from 'vue'
+import { Loading } from '@element-plus/icons-vue'
 import { useHabitStore } from '@/stores/habit'
+import { createCheckin, getCheckins, deleteCheckin, getCheckinStats } from '@/api/checkin'
+import { ElMessage } from 'element-plus'
+import dayjs from 'dayjs'
 
 const habitStore = useHabitStore()
+const { habits, loading, fetchHabits } = habitStore
 
-const today = dayjs().format('YYYY-MM-DD')
-const currentMonth = ref(dayjs().toDate())
 const calendarDate = ref(new Date())
-const showUncheckedOnly = ref(false)
-const loading = ref(false)
-const checkinLoading = reactive({})
-const undoLoading = reactive({})
-
-const habits = ref([])
+const currentMonth = ref(dayjs().format('YYYY-MM'))
 const todayCheckins = ref([])
-const streakData = ref({})
-const allCheckinDates = ref([])
-
-const dialogVisible = ref(false)
-const currentHabit = ref(null)
+const monthlyCheckins = ref([])
+const streaks = ref({})
+const showUncheckedOnly = ref(false)
+const noteDialogVisible = ref(false)
 const checkinNote = ref('')
-const confirmLoading = ref(false)
+const currentCheckinHabit = ref(null)
+const checkingIn = ref(false)
 
-const checkedHabitIds = computed(() => {
-  return new Set(todayCheckins.value.map(c => c.habit_id))
+const todayStr = computed(() => dayjs().format('YYYY-MM-DD'))
+const todayHabitCount = computed(() => habits.value.length)
+const todayCheckinCount = computed(() => todayCheckins.value.length)
+const checkinRate = computed(() => {
+  if (todayHabitCount.value === 0) return 0
+  return Math.round((todayCheckinCount.value / todayHabitCount.value) * 100)
 })
 
-const todayCheckedCount = computed(() => {
-  return todayCheckins.value.length
-})
-
-const currentStreakStats = computed(() => {
-  const values = Object.values(streakData.value)
-  if (values.length === 0) return 0
-  return Math.max(...values)
-})
-
-const checkinDates = computed(() => {
-  return allCheckinDates.value
+const overallStreak = computed(() => {
+  let max = 0
+  Object.values(streaks.value).forEach(s => {
+    if (s > max) max = s
+  })
+  return max
 })
 
 const filteredHabits = computed(() => {
-  if (showUncheckedOnly.value) {
-    return habits.value.filter(h => !checkedHabitIds.value.has(h.id))
-  }
-  return habits.value
+  if (!showUncheckedOnly.value) return habits.value
+  return habits.value.filter(h => !isCheckedInToday(h.id))
 })
 
-function categoryLabel(category) {
-  const labels = { work: '工作', study: '学习', life: '生活', sports: '运动', other: '其他' }
-  return labels[category] || '其他'
-}
-
-function categoryColor(category) {
-  const colors = { work: '#409EFF', study: '#67C23A', life: '#E6A23C', sports: '#F56C6C', other: '#909399' }
-  return colors[category] || '#409EFF'
-}
-
-function frequencyLabel(frequency) {
-  const labels = { daily: '每天', weekly: '每周', monthly: '每月', custom: '自定义' }
-  return labels[frequency] || '每天'
-}
-
 function isCheckedInToday(habitId) {
-  return checkedHabitIds.value.has(habitId)
+  return todayCheckins.value.some(c => c.habit_id === habitId)
 }
 
-function getStreak(habitId) {
-  return streakData.value[habitId] || 0
+function isCheckedDate(dateStr) {
+  return monthlyCheckins.value.some(c => dayjs(c.checkin_date).format('YYYY-MM-DD') === dateStr)
 }
 
-async function fetchHabits() {
-  try {
-    const res = await getHabits()
-    if (Array.isArray(res.data)) {
-      habits.value = res.data
-    } else if (Array.isArray(res)) {
-      habits.value = res
-    } else {
-      habits.value = []
-    }
-  } catch (error) {
-    console.error('获取习惯列表失败:', error)
-    habits.value = []
+function getCategoryEmoji(cat) {
+  const map = {
+    health: '💪', study: '📚', work: '💼', life: '🏠',
+    sports: '⚽', reading: '📖', meditation: '🧘', social: '👥'
   }
+  return map[cat] || '⭐'
+}
+
+function getTodayCheckinId(habitId) {
+  const found = todayCheckins.value.find(c => c.habit_id === habitId)
+  return found ? found.id : null
 }
 
 async function fetchTodayCheckins() {
   try {
-    const res = await getCheckins({
-      startDate: today,
-      endDate: today,
-      page: 1,
-      pageSize: 100
-    })
-    if (res.data && res.data.list) {
-      todayCheckins.value = res.data.list
-    } else if (Array.isArray(res.data)) {
+    const res = await getCheckins({ date: todayStr.value })
+    if (Array.isArray(res.data)) {
       todayCheckins.value = res.data
+    } else if (Array.isArray(res)) {
+      todayCheckins.value = res
     } else {
       todayCheckins.value = []
     }
-  } catch (error) {
-    console.error('获取今日打卡记录失败:', error)
+  } catch (err) {
+    console.error('获取今日打卡失败:', err)
     todayCheckins.value = []
   }
 }
 
-async function fetchCheckinDates(year, month) {
-  const startDate = dayjs(new Date(year, month - 1, 1)).format('YYYY-MM-DD')
-  const endDate = dayjs(new Date(year, month, 0)).format('YYYY-MM-DD')
+async function fetchMonthlyCheckins() {
   try {
     const res = await getCheckins({
-      startDate,
-      endDate,
-      page: 1,
-      pageSize: 200
+      startDate: dayjs(currentMonth.value).startOf('month').format('YYYY-MM-DD'),
+      endDate: dayjs(currentMonth.value).endOf('month').format('YYYY-MM-DD')
     })
-    let records = []
-    if (res.data && res.data.list) {
-      records = res.data.list
-    } else if (Array.isArray(res.data)) {
-      records = res.data
+    if (Array.isArray(res.data)) {
+      monthlyCheckins.value = res.data
+    } else if (Array.isArray(res)) {
+      monthlyCheckins.value = res
+    } else {
+      monthlyCheckins.value = []
     }
-    allCheckinDates.value = [...new Set(records.map(r => r.checkin_date))]
-  } catch (error) {
-    console.error('获取打卡日期失败:', error)
-    allCheckinDates.value = []
+  } catch (err) {
+    console.error('获取月度打卡失败:', err)
+    monthlyCheckins.value = []
   }
 }
 
-async function fetchStreakData() {
+async function fetchStreaks() {
   try {
-    const res = await getCheckinStats({ days: 365 })
-    if (res.data && res.data.habits) {
-      const data = {}
-      res.data.habits.forEach(h => {
-        data[h.habitId] = h.currentStreak || 0
+    const res = await getCheckinStats()
+    const stats = res.data || res
+    if (stats) {
+      habits.value.forEach(h => {
+        if (stats[h.id]) {
+          streaks.value[h.id] = stats[h.id].streak || 0
+        }
       })
-      streakData.value = data
     }
-  } catch (error) {
-    console.error('获取连续打卡数据失败:', error)
-    streakData.value = {}
+  } catch (err) {
+    console.error('获取打卡统计失败:', err)
   }
 }
 
-async function loadAll() {
-  loading.value = true
-  await Promise.all([
-    fetchHabits(),
-    fetchTodayCheckins(),
-    fetchStreakData()
-  ])
-  const now = dayjs()
-  await fetchCheckinDates(now.year(), now.month() + 1)
-  loading.value = false
-}
-
-function handleMonthChange(val) {
-  const d = dayjs(val)
-  calendarDate.value = d.toDate()
-  fetchCheckinDates(d.year(), d.month() + 1)
-}
-
-function handleCheckin(habit) {
-  currentHabit.value = habit
+function openCheckinDialog(habit) {
+  currentCheckinHabit.value = habit
   checkinNote.value = ''
-  dialogVisible.value = true
+  noteDialogVisible.value = true
 }
 
 async function confirmCheckin() {
-  if (!currentHabit.value) return
-  const habitId = currentHabit.value.id
-  confirmLoading.value = true
-  checkinLoading[habitId] = true
+  if (!currentCheckinHabit.value) return
+  checkingIn.value = true
   try {
-    const res = await createCheckin({
-      habitId,
-      note: checkinNote.value || undefined,
-      checkinDate: today
+    await createCheckin({
+      habit_id: currentCheckinHabit.value.id,
+      checkin_date: todayStr.value,
+      note: checkinNote.value
     })
-    if (res.data) {
-      todayCheckins.value.push(res.data)
-    }
-    allCheckinDates.value.push(today)
-    ElMessage.success('打卡成功')
-    dialogVisible.value = false
-    await fetchStreakData()
-  } catch (error) {
-    console.error('打卡失败:', error)
+    ElMessage.success('打卡成功！')
+    noteDialogVisible.value = false
+    await refresh()
+  } catch (err) {
+    console.error('打卡失败:', err)
   } finally {
-    confirmLoading.value = false
-    checkinLoading[habitId] = false
+    checkingIn.value = false
   }
 }
 
-async function handleUndoCheckin(habitId) {
-  undoLoading[habitId] = true
+async function undoCheckin(habitId) {
+  const checkinId = getTodayCheckinId(habitId)
+  if (!checkinId) return
   try {
-    const record = todayCheckins.value.find(c => c.habit_id === habitId)
-    if (!record) return
-    await deleteCheckin(record.id)
-    todayCheckins.value = todayCheckins.value.filter(c => c.id !== record.id)
+    await deleteCheckin(checkinId)
     ElMessage.success('已撤销打卡')
-    await fetchStreakData()
-  } catch (error) {
-    console.error('撤销打卡失败:', error)
-  } finally {
-    undoLoading[habitId] = false
+    await refresh()
+  } catch (err) {
+    console.error('撤销打卡失败:', err)
   }
 }
 
-onMounted(() => {
-  loadAll()
+async function refresh() {
+  await Promise.all([fetchTodayCheckins(), fetchMonthlyCheckins(), fetchStreaks()])
+}
+
+onMounted(async () => {
+  await fetchHabits()
+  await refresh()
+})
+
+watch(currentMonth, () => {
+  fetchMonthlyCheckins()
 })
 </script>
 
 <style scoped>
-.checkin-page {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 20px;
-}
-
-.page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 20px;
-}
-
-.page-header h2 {
-  font-size: 22px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.calendar-card {
-  margin-bottom: 20px;
-  border-radius: 12px;
-}
-
-.calendar-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 50px;
-  position: relative;
-}
-
-.calendar-cell.is-today .calendar-day {
-  background-color: var(--el-color-primary);
-  color: #fff;
-  border-radius: 50%;
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.calendar-day {
-  font-size: 13px;
-  line-height: 1;
-}
-
-.checkin-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background-color: var(--el-color-success);
-  margin-top: 3px;
-}
-
-.stats-bar {
+.stats-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 16px;
   margin-bottom: 24px;
 }
 
-.stat-card {
-  text-align: center;
-  border-radius: 12px;
+.two-col-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
 }
 
-.stat-value {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--el-color-primary);
-  line-height: 1.2;
-}
-
-.stat-label {
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
-  margin-top: 6px;
-}
-
-.section-header {
+.card-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
+  align-items: center;
   margin-bottom: 16px;
 }
 
-.section-header h3 {
-  font-size: 17px;
+.card-header h3 {
+  margin: 0;
+  font-size: 18px;
   font-weight: 600;
-  color: var(--el-text-color-primary);
+  color: var(--text-primary);
 }
 
-.loading-container {
-  padding: 20px;
+.calendar-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
 }
 
-.empty-state {
-  padding: 40px 0;
+.calendar-day .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+  margin-top: 2px;
 }
 
-.habit-list {
+.calendar-day.checked span:first-child {
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.habit-checkin-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  max-height: 480px;
+  overflow-y: auto;
 }
 
-.habit-card {
-  border-radius: 12px;
+.checkin-item {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  padding: 4px 0;
+  align-items: center;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  transition: all var(--transition-base);
 }
 
-.habit-info {
+.checkin-item.done {
+  background: rgba(var(--success-rgb), 0.06);
+  border-color: rgba(var(--success-rgb), 0.2);
+}
+
+.checkin-item:hover {
+  border-color: var(--primary);
+}
+
+.checkin-left {
   display: flex;
   align-items: center;
-  gap: 14px;
-  flex: 1;
+  gap: 12px;
 }
 
-.habit-indicator {
-  width: 4px;
+.habit-icon {
+  width: 40px;
   height: 40px;
-  border-radius: 2px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  color: #fff;
   flex-shrink: 0;
 }
 
-.habit-details {
+.checkin-info {
   display: flex;
   flex-direction: column;
-  gap: 4px;
 }
 
 .habit-name {
+  font-weight: 600;
+  color: var(--text-primary);
   font-size: 15px;
-  font-weight: 500;
-  color: var(--el-text-color-primary);
 }
 
-.habit-meta {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.category-tag {
-  border: none !important;
-}
-
-.frequency-text {
+.habit-streak {
   font-size: 12px;
-  color: var(--el-text-color-secondary);
+  color: var(--warning);
+  margin-top: 2px;
 }
 
-.streak-text {
-  font-size: 12px;
-  color: var(--el-color-warning);
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.habit-action {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.checkin-right {
   flex-shrink: 0;
 }
 
-.checked-btn {
-  pointer-events: none;
-}
-
-.dialog-habit-info {
-  margin-bottom: 16px;
-  font-size: 14px;
-}
-
-.dialog-label {
-  color: var(--el-text-color-secondary);
-}
-
-@media (max-width: 600px) {
-  .stats-bar {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
+@media (max-width: 768px) {
+  .stats-row {
+    grid-template-columns: repeat(2, 1fr);
   }
-
-  .habit-card {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-
-  .habit-action {
-    align-self: flex-end;
+  .two-col-layout {
+    grid-template-columns: 1fr;
   }
 }
 </style>
