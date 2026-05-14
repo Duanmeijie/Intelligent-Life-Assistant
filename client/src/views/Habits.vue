@@ -65,11 +65,25 @@
             <div class="habit-icon" :style="{ background: habit.color || '#6366f1' }">
               {{ getCategoryEmoji(habit.category) }}
             </div>
-            <el-switch v-model="habit.is_active" @change="toggleActive(habit)" />
+            <div class="habit-top-right">
+              <span v-if="habit.current_streak > 0" class="streak-badge">
+                🔥 {{ habit.current_streak }}天
+              </span>
+              <el-switch v-model="habit.is_active" @change="toggleActive(habit)" />
+            </div>
           </div>
           <div class="habit-body">
             <h4>{{ habit.name }}</h4>
             <p v-if="habit.description">{{ habit.description }}</p>
+          </div>
+          <div class="habit-completion-bar" v-if="habit.completion_rate !== undefined">
+            <div class="completion-track">
+              <div
+                class="completion-fill"
+                :style="{ width: Math.min(habit.completion_rate, 100) + '%' }"
+              ></div>
+            </div>
+            <span class="completion-label">{{ Math.round(habit.completion_rate) }}%</span>
           </div>
           <div class="habit-meta">
             <el-tag size="small" effect="plain" round>{{ categoryLabel(habit.category) }}</el-tag>
@@ -86,6 +100,20 @@
               </template>
             </el-popconfirm>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="glass-card" v-if="recentCheckins.length > 0">
+      <div class="card-header">
+        <h3>⏱ 最近打卡记录</h3>
+      </div>
+      <div class="recent-checkins">
+        <div v-for="(item, idx) in recentCheckins.slice(0, 10)" :key="idx" class="recent-item">
+          <span class="recent-date">{{ dayjs(item.checkin_date).format('MM/DD') }}</span>
+          <span class="recent-dot" :style="{ background: getHabitColor(item.habit_id) }"></span>
+          <span class="recent-habit">{{ getHabitName(item.habit_id) }}</span>
+          <span v-if="item.note" class="recent-note">{{ item.note }}</span>
         </div>
       </div>
     </div>
@@ -171,17 +199,22 @@
 <script setup>
 import { ref, computed, onMounted, reactive } from 'vue'
 import { Plus, Loading } from '@element-plus/icons-vue'
+import { storeToRefs } from 'pinia'
 import { useHabitStore } from '@/stores/habit'
+import { getCheckins } from '@/api/checkin'
 import { ElMessage } from 'element-plus'
+import dayjs from 'dayjs'
 
 const habitStore = useHabitStore()
-const { habits, loading, fetchHabits, addHabit, editHabit, removeHabit } = habitStore
+const { habits, loading } = storeToRefs(habitStore)
+const { fetchHabits, addHabit, editHabit, removeHabit } = habitStore
 
 const dialogVisible = ref(false)
 const isEditing = ref(false)
 const editingId = ref(null)
 const submitting = ref(false)
 const formRef = ref(null)
+const recentCheckins = ref([])
 
 const categories = [
   { value: 'health', label: '💪 健康' },
@@ -303,8 +336,32 @@ async function handleDelete(id) {
   }
 }
 
+function getHabitColor(habitId) {
+  const found = habits.value.find(h => h.id === habitId)
+  return found?.color || '#6366f1'
+}
+
+function getHabitName(habitId) {
+  const found = habits.value.find(h => h.id === habitId)
+  return found?.name || '未知习惯'
+}
+
+async function fetchRecentCheckins() {
+  try {
+    const res = await getCheckins({
+      startDate: dayjs().subtract(30, 'day').format('YYYY-MM-DD'),
+      endDate: dayjs().format('YYYY-MM-DD')
+    })
+    const data = res.data || res || []
+    recentCheckins.value = Array.isArray(data) ? data : []
+  } catch {
+    recentCheckins.value = []
+  }
+}
+
 onMounted(() => {
   fetchHabits()
+  fetchRecentCheckins()
 })
 </script>
 
@@ -405,6 +462,96 @@ onMounted(() => {
   gap: 4px;
   padding-top: 8px;
   border-top: 1px solid var(--border);
+}
+
+.habit-top-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.streak-badge {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--warning);
+  white-space: nowrap;
+}
+
+.habit-completion-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.completion-track {
+  flex: 1;
+  height: 6px;
+  background: var(--bg-base);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.completion-fill {
+  height: 100%;
+  background: var(--gradient-primary);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.completion-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary);
+  min-width: 32px;
+  text-align: right;
+}
+
+.recent-checkins {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.recent-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  transition: var(--transition-fast);
+  font-size: 13px;
+}
+
+.recent-item:hover {
+  background: var(--bg-secondary);
+}
+
+.recent-date {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  min-width: 48px;
+  font-variant-numeric: tabular-nums;
+}
+
+.recent-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.recent-habit {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.recent-note {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
 }
 
 @media (max-width: 768px) {

@@ -34,9 +34,15 @@
         </el-tab-pane>
 
         <el-tab-pane label="📅 打卡热力图" name="checkin">
-          <div class="chart-card">
-            <h4>年度打卡热力图</h4>
-            <CalendarHeatmap :checkins="checkinData" />
+          <div class="charts-grid">
+            <div class="chart-card">
+              <h4>年度打卡热力图</h4>
+              <CalendarHeatmap :checkins="checkinData" />
+            </div>
+            <div class="chart-card">
+              <h4>月度打卡趋势</h4>
+              <div ref="checkinTrendChart" class="chart-box"></div>
+            </div>
           </div>
         </el-tab-pane>
 
@@ -79,6 +85,7 @@
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { Loading } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
+import CalendarHeatmap from '@/components/CalendarHeatmap.vue'
 import { getHabits } from '@/api/habit'
 import { getCheckins } from '@/api/checkin'
 import { getSchedules } from '@/api/schedule'
@@ -92,6 +99,7 @@ const habitBarChart = ref(null)
 const habitPieChart = ref(null)
 const schedulePieChart = ref(null)
 const scheduleBarChart = ref(null)
+const checkinTrendChart = ref(null)
 
 const checkinData = ref([])
 const aiLoading = ref(false)
@@ -101,6 +109,7 @@ let barChartInstance = null
 let pieChartInstance = null
 let schedPieInstance = null
 let schedBarInstance = null
+let checkinTrendInstance = null
 
 const parsedReport = ref('')
 
@@ -169,9 +178,43 @@ async function fetchCheckinData() {
     })
     const data = res.data || res || []
     checkinData.value = Array.isArray(data) ? data : []
+    renderCheckinTrend()
   } catch (err) {
     console.error('获取打卡数据失败:', err)
   }
+}
+
+function renderCheckinTrend() {
+  if (!checkinTrendChart.value || !checkinTrendInstance) return
+  const monthlyData = {}
+  checkinData.value.forEach(item => {
+    const date = dayjs(item.checkin_date || item.date)
+    const monthKey = date.format('YYYY-MM')
+    monthlyData[monthKey] = (monthlyData[monthKey] || 0) + (item.count || 1)
+  })
+  const sortedMonths = Object.keys(monthlyData).sort()
+  const months = sortedMonths.map(m => {
+    const names = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月']
+    return names[parseInt(m.split('-')[1]) - 1] || m
+  })
+  const counts = sortedMonths.map(m => monthlyData[m])
+  checkinTrendInstance.setOption({
+    tooltip: { trigger: 'axis' },
+    grid: { left: '5%', right: '5%', bottom: '10%', containLabel: true },
+    xAxis: { type: 'category', data: months, axisLabel: { fontSize: 11 } },
+    yAxis: { type: 'value', minInterval: 1 },
+    series: [{
+      type: 'line', data: counts, smooth: true, areaStyle: {
+        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+          { offset: 0, color: 'rgba(99, 102, 241, 0.3)' },
+          { offset: 1, color: 'rgba(99, 102, 241, 0.02)' }
+        ])
+      },
+      itemStyle: { color: '#6366f1' },
+      lineStyle: { width: 2 },
+      symbol: 'circle', symbolSize: 6
+    }]
+  })
 }
 
 async function fetchScheduleStats() {
@@ -264,6 +307,9 @@ function initCharts() {
   if (scheduleBarChart.value && !schedBarInstance) {
     schedBarInstance = echarts.init(scheduleBarChart.value)
   }
+  if (checkinTrendChart.value && !checkinTrendInstance) {
+    checkinTrendInstance = echarts.init(checkinTrendChart.value)
+  }
 }
 
 function destroyCharts() {
@@ -271,10 +317,12 @@ function destroyCharts() {
   pieChartInstance?.dispose()
   schedPieInstance?.dispose()
   schedBarInstance?.dispose()
+  checkinTrendInstance?.dispose()
   barChartInstance = null
   pieChartInstance = null
   schedPieInstance = null
   schedBarInstance = null
+  checkinTrendInstance = null
 }
 
 watch(activeTab, async (tab) => {
@@ -302,14 +350,6 @@ onMounted(async () => {
 onUnmounted(() => {
   destroyCharts()
 })
-</script>
-
-<script>
-import CalendarHeatmap from '@/components/CalendarHeatmap.vue'
-
-export default {
-  components: { CalendarHeatmap }
-}
 </script>
 
 <style scoped>

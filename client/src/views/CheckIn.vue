@@ -125,6 +125,37 @@
       </div>
     </div>
 
+    <div class="glass-card weekly-section">
+      <div class="card-header">
+        <h3>📊 本周打卡概览</h3>
+        <span class="week-streak" v-if="weekCheckinRate > 0">
+          {{ weekCheckinRate }}% 完成率
+        </span>
+      </div>
+      <div class="weekly-bar">
+        <div
+          v-for="(day, idx) in weekDays"
+          :key="idx"
+          class="week-bar-item"
+          :class="{ active: day.checked, today: day.isToday }"
+          @click="scrollToHabit"
+        >
+          <div class="week-bar-label">{{ day.label }}</div>
+          <div class="week-bar-track">
+            <div
+              class="week-bar-fill"
+              :style="{ height: day.checked ? '100%' : '15%' }"
+            ></div>
+          </div>
+          <div class="week-bar-date">{{ day.dateNum }}</div>
+        </div>
+      </div>
+      <div class="motivation-banner" v-if="streakMessage">
+        <span class="motivation-icon">{{ streakMessage.icon }}</span>
+        <span class="motivation-text">{{ streakMessage.text }}</span>
+      </div>
+    </div>
+
     <el-dialog
       v-model="noteDialogVisible"
       title="添加打卡备注"
@@ -155,18 +186,21 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { Loading } from '@element-plus/icons-vue'
+import { storeToRefs } from 'pinia'
 import { useHabitStore } from '@/stores/habit'
 import { createCheckin, getCheckins, deleteCheckin, getCheckinStats } from '@/api/checkin'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
 
 const habitStore = useHabitStore()
-const { habits, loading, fetchHabits } = habitStore
+const { habits, loading } = storeToRefs(habitStore)
+const { fetchHabits } = habitStore
 
 const calendarDate = ref(new Date())
 const currentMonth = ref(dayjs().format('YYYY-MM'))
 const todayCheckins = ref([])
 const monthlyCheckins = ref([])
+const weeklyCheckins = ref([])
 const streaks = ref({})
 const showUncheckedOnly = ref(false)
 const noteDialogVisible = ref(false)
@@ -188,6 +222,40 @@ const overallStreak = computed(() => {
     if (s > max) max = s
   })
   return max
+})
+
+const weekDays = computed(() => {
+  const start = dayjs().startOf('week')
+  const days = []
+  for (let i = 0; i < 7; i++) {
+    const d = start.add(i, 'day')
+    const dateStr = d.format('YYYY-MM-DD')
+    const checked = weeklyCheckins.value.some(c => dayjs(c.checkin_date || c.date).format('YYYY-MM-DD') === dateStr)
+    days.push({
+      label: ['一', '二', '三', '四', '五', '六', '日'][i],
+      dateNum: d.date(),
+      date: dateStr,
+      isToday: dateStr === dayjs().format('YYYY-MM-DD'),
+      checked
+    })
+  }
+  return days
+})
+
+const weekCheckinRate = computed(() => {
+  if (weekDays.value.length === 0) return 0
+  const checked = weekDays.value.filter(d => d.checked).length
+  return Math.round((checked / 7) * 100)
+})
+
+const streakMessage = computed(() => {
+  const rate = weekCheckinRate.value
+  if (rate >= 100) return { icon: '🏆', text: '本周全勤！你是真正的自律达人！' }
+  if (rate >= 80) return { icon: '🌟', text: '本周表现优秀，继续保持！' }
+  if (rate >= 50) return { icon: '💪', text: '不错的进度，再加把劲就能完成目标！' }
+  if (rate >= 30) return { icon: '🌱', text: '好的开始是成功的一半，坚持打卡！' }
+  if (overallStreak.value >= 7) return { icon: '🔥', text: `已连续打卡 ${overallStreak.value} 天，毅力可嘉！` }
+  return null
 })
 
 const filteredHabits = computed(() => {
@@ -251,6 +319,22 @@ async function fetchMonthlyCheckins() {
   }
 }
 
+async function fetchWeekCheckins() {
+  try {
+    const start = dayjs().startOf('week').format('YYYY-MM-DD')
+    const end = dayjs().endOf('week').format('YYYY-MM-DD')
+    const res = await getCheckins({ startDate: start, endDate: end })
+    const data = res.data || res || []
+    weeklyCheckins.value = Array.isArray(data) ? data : []
+  } catch {
+    weeklyCheckins.value = []
+  }
+}
+
+function scrollToHabit() {
+  document.querySelector('.checkin-card')?.scrollIntoView({ behavior: 'smooth' })
+}
+
 async function fetchStreaks() {
   try {
     const res = await getCheckinStats()
@@ -305,7 +389,7 @@ async function undoCheckin(habitId) {
 }
 
 async function refresh() {
-  await Promise.all([fetchTodayCheckins(), fetchMonthlyCheckins(), fetchStreaks()])
+  await Promise.all([fetchTodayCheckins(), fetchMonthlyCheckins(), fetchWeekCheckins(), fetchStreaks()])
 }
 
 onMounted(async () => {
@@ -433,12 +517,120 @@ watch(currentMonth, () => {
   flex-shrink: 0;
 }
 
+.weekly-section {
+  margin-top: 24px;
+}
+
+.week-streak {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.weekly-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 12px 0;
+}
+
+.week-bar-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  cursor: pointer;
+  padding: 6px 4px;
+  border-radius: var(--radius-sm);
+  transition: var(--transition-fast);
+}
+
+.week-bar-item:hover {
+  background: var(--bg-secondary);
+}
+
+.week-bar-item.today .week-bar-label {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.week-bar-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.week-bar-track {
+  width: 16px;
+  height: 60px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column-reverse;
+  border: 1px solid var(--border-color);
+}
+
+.week-bar-item.active .week-bar-track {
+  border-color: var(--primary);
+}
+
+.week-bar-fill {
+  width: 100%;
+  background: var(--gradient-primary);
+  border-radius: 8px;
+  transition: height 0.3s ease;
+  min-height: 4px;
+}
+
+.week-bar-item.today .week-bar-fill {
+  background: var(--gradient-success);
+}
+
+.week-bar-date {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+
+.motivation-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.08), rgba(var(--success-rgb), 0.08));
+  border-radius: var(--radius);
+  margin-top: 8px;
+  border: 1px solid rgba(var(--primary-rgb), 0.1);
+}
+
+.motivation-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.motivation-text {
+  font-size: 14px;
+  color: var(--text-primary);
+  font-weight: 500;
+  line-height: 1.5;
+}
+
 @media (max-width: 768px) {
   .stats-row {
     grid-template-columns: repeat(2, 1fr);
   }
   .two-col-layout {
     grid-template-columns: 1fr;
+  }
+  .weekly-bar {
+    gap: 4px;
+  }
+  .week-bar-track {
+    height: 40px;
+    width: 12px;
   }
 }
 </style>

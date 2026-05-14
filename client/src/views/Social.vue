@@ -160,7 +160,16 @@
                     <span class="comment-username">{{ comment.user?.username || '匿名' }}</span>
                     <span class="comment-time">{{ formatTime(comment.createdAt) }}</span>
                   </div>
-                  <span class="comment-text">{{ comment.content }}</span>
+                  <span class="comment-text">
+                    <span v-if="comment.reply_to" class="reply-mention">@{{ comment.reply_to }}</span>
+                    {{ comment.content }}
+                  </span>
+                  <button
+                    class="comment-reply-btn"
+                    @click="setReplyTarget(post, comment)"
+                  >
+                    回复
+                  </button>
                 </div>
               </div>
             </div>
@@ -169,25 +178,33 @@
               <el-avatar :size="28" :src="authStore.user?.avatar" style="flex-shrink:0">
                 {{ authStore.user?.username?.charAt(0)?.toUpperCase() || 'U' }}
               </el-avatar>
-              <el-input
-                v-model="post.commentText"
-                placeholder="写下你的评论..."
-                size="small"
-                class="comment-input"
-                @keyup.enter="handleComment(post)"
-              >
-                <template #suffix>
-                  <el-button
-                    link
-                    type="primary"
-                    :loading="post.commenting"
-                    :disabled="!post.commentText?.trim()"
-                    @click="handleComment(post)"
-                  >
-                    发送
-                  </el-button>
-                </template>
-              </el-input>
+              <div class="comment-input-wrap">
+                <div v-if="post.replyTarget" class="reply-indicator">
+                  回复 @{{ post.replyTarget.username }}
+                  <button class="reply-cancel" @click="cancelReply(post)">
+                    <el-icon :size="12"><Close /></el-icon>
+                  </button>
+                </div>
+                <el-input
+                  v-model="post.commentText"
+                  :placeholder="post.replyTarget ? `回复 @${post.replyTarget.username}...` : '写下你的评论...'"
+                  size="small"
+                  class="comment-input"
+                  @keyup.enter="handleComment(post)"
+                >
+                  <template #suffix>
+                    <el-button
+                      link
+                      type="primary"
+                      :loading="post.commenting"
+                      :disabled="!post.commentText?.trim()"
+                      @click="handleComment(post)"
+                    >
+                      发送
+                    </el-button>
+                  </template>
+                </el-input>
+              </div>
             </div>
           </template>
         </div>
@@ -210,7 +227,7 @@
 import { ref, onMounted } from 'vue'
 import {
   Plus, Delete, ChatDotSquare, StarFilled, PictureFilled,
-  Share, Refresh, Loading
+  Share, Refresh, Loading, Close
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import {
@@ -267,7 +284,8 @@ async function fetchPosts() {
       comments: null,
       commentsLoading: false,
       commentText: '',
-      commenting: false
+      commenting: false,
+      replyTarget: null
     }))
     total.value = res.total || res.data?.total || posts.value.length
   } catch (err) {
@@ -369,6 +387,20 @@ async function handleLike(post) {
   }
 }
 
+async function setReplyTarget(post, comment) {
+  post.replyTarget = {
+    id: comment.user_id || comment.user?.id,
+    username: comment.user?.username || '匿名',
+    commentId: comment.id
+  }
+  post.commentText = ''
+}
+
+function cancelReply(post) {
+  post.replyTarget = null
+  post.commentText = ''
+}
+
 async function toggleComments(post) {
   post.showComments = !post.showComments
   if (post.showComments && !post.comments) {
@@ -391,9 +423,15 @@ async function handleComment(post) {
   if (!text) return
   post.commenting = true
   try {
-    await commentPost(post.id, { content: text })
+    const commentData = { content: text }
+    if (post.replyTarget) {
+      commentData.reply_to = post.replyTarget.username
+      commentData.parent_id = post.replyTarget.commentId
+    }
+    await commentPost(post.id, commentData)
     ElMessage.success('评论成功')
     post.commentText = ''
+    post.replyTarget = null
     const res = await getComments(post.id)
     const list = res.data?.rows || res.data || res || []
     post.comments = Array.isArray(list) ? list : []
@@ -828,8 +866,67 @@ onMounted(() => {
 
 .comment-input-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
+}
+
+.comment-input-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.reply-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--primary);
+  padding: 4px 10px;
+  background: rgba(var(--primary-rgb), 0.06);
+  border-radius: var(--radius-sm);
+}
+
+.reply-cancel {
+  margin-left: auto;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 4px;
+  transition: var(--transition-fast);
+}
+
+.reply-cancel:hover {
+  background: rgba(var(--danger-rgb), 0.1);
+  color: var(--danger);
+}
+
+.reply-mention {
+  color: var(--primary);
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.comment-reply-btn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-top: 4px;
+  transition: var(--transition-fast);
+}
+
+.comment-reply-btn:hover {
+  color: var(--primary);
+  background: rgba(var(--primary-rgb), 0.06);
 }
 
 .comment-input :deep(.el-input__wrapper) {
